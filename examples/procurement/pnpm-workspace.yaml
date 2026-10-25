@@ -1,0 +1,7 @@
+packages:
+  - 'contracts'
+  - 'portal'
+  - 'procure-api'
+  - 'invoicing'
+  - 'erp-sync'
+  - 'legacy-approvals'

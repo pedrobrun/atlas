@@ -1,0 +1,22 @@
+{
+  "name": "@northwind/erp-sync",
+  "version": "0.8.4",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "sync": "tsx src/main.ts",
+    "test": "tsx --test \"src/**/*.test.ts\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@northwind/contracts": "workspace:*",
+    "pg": "8.12.0",
+    "zod": "3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "20.14.15",
+    "@types/pg": "8.11.6",
+    "tsx": "4.17.0",
+    "typescript": "5.5.4"
+  }
+}
