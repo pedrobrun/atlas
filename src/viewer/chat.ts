@@ -1,29 +1,24 @@
 // The chat panel. It talks to serve.ts, which runs the user's own agent read-only in the
 // project. Answers can cite modules, light them up, draft a flow, and modules get described
 // the first time they are opened.
-import type {
-  ChatEvent,
-  ChatRequest,
-  DescribeResponse,
-  Flow,
-  FlowDraft,
-  SaveFlowResponse,
-} from '../types.ts';
-import { CAP, D, esc, FLOW, modLabel, N, repoOf } from './data.ts';
+import type { ChatEvent, ChatRequest, DescribeResponse, Flow, SaveFlowResponse } from '../types.ts';
+import { CAP, D, FLOW, modLabel, N, repoOf } from './data.ts';
+import { byId, esc } from './dom.ts';
 import { L, suggestions, t } from './i18n.ts';
 import { state } from './state.ts';
 import type { TreeNode } from './tree.ts';
 import { view } from './tree.ts';
 import { applyState, light, showFlow } from './nav.ts';
-import { conf, renderCaption, renderUI, sw } from './panels.ts';
+import { renderCaption, renderUI } from './panels.ts';
+import { confidenceChip, repoDot } from './html.ts';
+import { readAnswer, toFlow } from './answer.ts';
 
 const served = location.protocol.startsWith('http');
-const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
-const msgsEl = $('msgs'),
-  qEl = $<HTMLTextAreaElement>('q'),
-  sendEl = $<HTMLButtonElement>('send');
-let session: string | null = null,
-  busy = false;
+const messages = byId('msgs');
+const input = byId<HTMLTextAreaElement>('q');
+const send = byId<HTMLButtonElement>('send');
+let session: string | null = null;
+let busy = false;
 try {
   session = sessionStorage.getItem('atlasChat');
 } catch {
@@ -32,37 +27,37 @@ try {
 
 const post = (url: string, body: unknown) =>
   fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+const inMap = (id: string) => !!N[id] || !!CAP[id.slice(4)];
+const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 // ---------- rendering answers ----------
-function citeLabel(id: string) {
+function citation(id: string) {
   if (id.startsWith('cap:')) {
-    const c = CAP[id.slice(4)];
-    return c ? L(c, 'name') : null;
+    const cap = CAP[id.slice(4)];
+    return cap && `<button class="cite" data-go="${esc(id)}">◇${esc(L(cap, 'name'))}</button>`;
   }
-  return N[id] ? modLabel(id) : null;
+  return (
+    N[id] && `<button class="cite" data-go="${esc(id)}">${repoDot(repoOf(id))}${esc(modLabel(id))}</button>`
+  );
 }
+const inline = (s: string) =>
+  esc(s)
+    .replace(/\[\[([^\]]+)\]\]/g, (_, id: string) => citation(id) || `<code>${esc(id)}</code>`)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+
 /** Tiny markdown: paragraphs, lists, `code`, **bold**, and [[atlas-id]] as links into the scene. */
-function md(src: string) {
-  const inline = (s: string) =>
-    esc(s)
-      .replace(/\[\[([^\]]+)\]\]/g, (_, id: string) => {
-        const l = citeLabel(id);
-        return l
-          ? `<button class="cite" data-go="${esc(id)}">${id.startsWith('cap:') ? '◇' : sw(repoOf(id))}${esc(l)}</button>`
-          : `<code>${esc(id)}</code>`;
-      })
-      .replace(/`([^`]+)`/g, '<code>$1</code>')
-      .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+function markdown(src: string) {
   const out: string[] = [];
   let list: 'ol' | 'ul' | null = null;
   for (const line of src.split('\n')) {
-    const li = line.match(/^\s*(?:[-*]|\d+\.)\s+(.*)/);
-    if (li) {
+    const item = line.match(/^\s*(?:[-*]|\d+\.)\s+(.*)/);
+    if (item) {
       if (!list) {
         list = /^\s*\d/.test(line) ? 'ol' : 'ul';
         out.push(`<${list}>`);
       }
-      out.push(`<li>${inline(li[1])}</li>`);
+      out.push(`<li>${inline(item[1])}</li>`);
       continue;
     }
     if (list) {
@@ -75,176 +70,145 @@ function md(src: string) {
   return out.join('');
 }
 
-// A drafted flow arrives as a fenced atlas-flow block; while streaming, hide it until it closes.
-function splitFlow(text: string): { text: string; raw: FlowDraft | null } {
-  const m = text.match(/```atlas-flow\s*([\s\S]*?)```/);
-  if (m) {
-    try {
-      return { text: text.replace(m[0], ''), raw: JSON.parse(m[1]) };
-    } catch {
-      return { text: text.replace(m[0], ''), raw: null };
-    }
-  }
-  const open = text.indexOf('```atlas-flow');
-  return { text: open >= 0 ? text.slice(0, open) : text, raw: null };
-}
-function toFlow(raw: FlowDraft): Flow {
-  const id = (raw.id || raw.name_en || 'flow')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '');
-  return {
-    id,
-    name: raw.name_pt || raw.name_en || id,
-    name_en: raw.name_en || raw.name_pt,
-    biz: raw.biz_pt || raw.biz_en,
-    biz_en: raw.biz_en || raw.biz_pt,
-    confidence: raw.confidence === 'verified' ? 'verified' : 'inferred',
-    steps: (raw.steps || [])
-      .filter((x) => N[x.unit])
-      .map((x) => ({
-        unit: x.unit,
-        text: x.text_pt || x.text_en || '',
-        text_en: x.text_en || x.text_pt,
-        anchor: x.anchor || null,
-      })),
-  };
-}
-const draftCard = (
-  f: Flow,
-) => `<div class="draftCard"><div class="k">${t('draft')} ${conf(f.confidence)}</div><b>${esc(L(f, 'name'))}</b><p>${esc(L(f, 'biz'))}</p>
-  <ol>${f.steps.map((x) => `<li>${esc(L(x, 'text'))} <span class="muted">· ${esc(modLabel(x.unit))}</span></li>`).join('')}</ol>
-  <div class="acts"><button data-preview="${esc(f.id)}">${t('preview')}</button><button class="pri" data-saveflow="${esc(f.id)}">${t('saveFlow')}</button></div></div>`;
-
-// The agent ends with "SHOW: id, id" when its answer is about specific modules.
-function splitShow(text: string) {
-  const m = text.match(/\n?\s*SHOW:\s*(.+)\s*$/);
-  if (!m) return { body: text, ids: [] as string[] };
-  return {
-    body: text.slice(0, m.index),
-    ids: m[1]
-      .split(/[,\s]+/)
-      .map((x) => x.replace(/^\[\[|\]\]$/g, ''))
-      .filter((id) => N[id] || CAP[id.slice(4)]),
-  };
+function draftCard(f: Flow) {
+  const steps = f.steps
+    .map((s) => `<li>${esc(L(s, 'text'))} <span class="muted">· ${esc(modLabel(s.unit))}</span></li>`)
+    .join('');
+  return [
+    `<div class="draftCard"><div class="k">${t('draft')} ${confidenceChip(f.confidence)}</div>`,
+    `<b>${esc(L(f, 'name'))}</b><p>${esc(L(f, 'biz'))}</p><ol>${steps}</ol>`,
+    `<div class="acts"><button data-preview="${esc(f.id)}">${t('preview')}</button>`,
+    `<button class="pri" data-saveflow="${esc(f.id)}">${t('saveFlow')}</button></div></div>`,
+  ].join('');
 }
 
+const litNote = (ids: string[]) =>
+  `<div class="lit">● ${ids.length} ${t('lit')} <button data-relight="${esc(ids.join(','))}">↺</button> <button data-unlight>${t('clear')}</button></div>`;
+
+/** What the viewer is looking at, so "this" in a question has a referent. */
 function aboutNow() {
   const n = view.T[state.sel ?? ''] || view.T[state.focus];
   if (!n || n === view.root) return null;
-  return {
-    id: n.id,
-    kind: n.kind,
-    label: n.kind === 'module' ? modLabel(n.id) : n.kind === 'file' ? n.file!.path : n.name,
-  };
+  const label = n.kind === 'module' ? modLabel(n.id) : n.kind === 'file' ? n.file.path : n.name;
+  return { id: n.id, kind: n.kind, label };
 }
 
 export function renderChat() {
-  qEl.placeholder = t('placeholder');
-  const a = aboutNow();
-  $('about').innerHTML = a ? `${t('about')}: <b>${esc(a.label)}</b>` : '';
-  if (!msgsEl.children.length && !busy) {
-    msgsEl.innerHTML = served
-      ? `<div class="sugg">${[...suggestions(), ...(D.config.suggestions[state.lang] || [])].map((q) => `<button data-ask="${esc(q)}">${esc(q)}</button>`).join('')}</div>`
+  input.placeholder = t('placeholder');
+  const about = aboutNow();
+  byId('about').innerHTML = about ? `${t('about')}: <b>${esc(about.label)}</b>` : '';
+  if (!messages.children.length && !busy) {
+    const questions = [...suggestions(), ...(D.config.suggestions[state.lang] || [])];
+    messages.innerHTML = served
+      ? `<div class="sugg">${questions.map((q) => `<button data-ask="${esc(q)}">${esc(q)}</button>`).join('')}</div>`
       : `<p class="empty">${t('needServe')}</p>`;
   }
-  sendEl.disabled = busy || !served;
+  send.disabled = busy || !served;
 }
-export const focusChat = () => qEl.focus();
+export const focusChat = () => input.focus();
 
-async function ask(q: string) {
-  if (busy || !q.trim() || !served) return;
-  if (msgsEl.querySelector('.sugg, .empty')) msgsEl.innerHTML = '';
+/** Streams /chat into `onEvent` until the agent is done. */
+async function streamChat(req: ChatRequest, onEvent: (e: ChatEvent) => void) {
+  const res = await post('/chat', req);
+  if (!res.body) throw new Error(String(res.status));
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let pending = '';
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) return;
+    pending += decoder.decode(value, { stream: true });
+    let nl;
+    while ((nl = pending.indexOf('\n')) >= 0) {
+      onEvent(JSON.parse(pending.slice(0, nl)));
+      pending = pending.slice(nl + 1);
+    }
+  }
+}
+
+function rememberSession(id: string) {
+  session = id;
+  try {
+    sessionStorage.setItem('atlasChat', id);
+  } catch {
+    /* no persistence */
+  }
+}
+
+async function ask(question: string) {
+  if (busy || !question.trim() || !served) return;
+  if (messages.querySelector('.sugg, .empty')) messages.innerHTML = '';
   busy = true;
   renderChat();
-  msgsEl.insertAdjacentHTML(
-    'beforeend',
-    `<div class="msg user">${esc(q)}</div><div class="msg bot"><div class="status">${t('thinking')}</div><div class="body"></div></div>`,
-  );
-  const bot = msgsEl.lastElementChild as HTMLElement,
-    status = bot.querySelector('.status')!,
-    body = bot.querySelector('.body')!;
-  msgsEl.scrollTop = msgsEl.scrollHeight;
-  const a = aboutNow();
+  const bot = document.createElement('div');
+  const status = document.createElement('div');
+  const body = document.createElement('div');
+  bot.className = 'msg bot';
+  status.className = 'status';
+  status.textContent = t('thinking');
+  body.className = 'body';
+  bot.append(status, body);
+  messages.insertAdjacentHTML('beforeend', `<div class="msg user">${esc(question)}</div>`);
+  messages.append(bot);
+  const scroll = () => (messages.scrollTop = messages.scrollHeight);
+  scroll();
+
+  const about = aboutNow();
   let text = '';
   try {
     const req: ChatRequest = {
-      message: q,
+      message: question,
       session,
       lang: state.lang,
-      about: a ? `${a.kind} ${a.id} (${a.label})` : null,
+      about: about && `${about.kind} ${about.id} (${about.label})`,
     };
-    const res = await post('/chat', req);
-    const reader = res.body!.getReader(),
-      dec = new TextDecoder();
-    let buf = '';
-    for (;;) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buf += dec.decode(value, { stream: true });
-      let nl;
-      while ((nl = buf.indexOf('\n')) >= 0) {
-        const ev: ChatEvent = JSON.parse(buf.slice(0, nl));
-        buf = buf.slice(nl + 1);
-        if (ev.type === 'status') status.textContent = ev.text;
-        else if (ev.type === 'delta') {
-          text += ev.text;
-          body.innerHTML = md(splitShow(splitFlow(text).text).body);
-        } else {
-          if (ev.session) {
-            session = ev.session;
-            try {
-              sessionStorage.setItem('atlasChat', session);
-            } catch {
-              /* no persistence */
-            }
-          }
-          if (ev.text) text = ev.text;
-          if (ev.error) text = text || `${t('chatErr')} (${ev.error})`;
-        }
+    await streamChat(req, (e) => {
+      if (e.type === 'status') status.textContent = e.text;
+      else if (e.type === 'delta') {
+        text += e.text;
+        body.innerHTML = markdown(readAnswer(text, inMap).body);
+      } else {
+        if (e.session) rememberSession(e.session);
+        if (e.text) text = e.text;
+        if (e.error) text = text || `${t('chatErr')} (${e.error})`;
       }
-      msgsEl.scrollTop = msgsEl.scrollHeight;
-    }
+      scroll();
+    });
   } catch (e) {
-    text = text || `${t('chatErr')}: ${(e as Error).message}`;
+    text = text || `${t('chatErr')}: ${errorText(e)}`;
   }
   status.remove();
-  const fl = splitFlow(text);
-  const { body: answer, ids } = splitShow(fl.text);
-  body.innerHTML = md(answer);
-  if (fl.raw) {
-    const f = toFlow(fl.raw);
-    if (f.steps.length) {
-      FLOW[f.id] = f;
-      bot.insertAdjacentHTML('beforeend', draftCard(f));
-    }
+
+  const answer = readAnswer(text, inMap);
+  body.innerHTML = markdown(answer.body);
+  const flow = answer.draft && toFlow(answer.draft, (id) => !!N[id]);
+  if (flow?.steps.length) {
+    FLOW[flow.id] = flow;
+    bot.insertAdjacentHTML('beforeend', draftCard(flow));
   }
-  if (ids.length) {
-    bot.insertAdjacentHTML(
-      'beforeend',
-      `<div class="lit">● ${ids.length} ${t('lit')} <button data-relight="${esc(ids.join(','))}">↺</button> <button data-unlight>${t('clear')}</button></div>`,
-    );
-    light(ids);
+  if (answer.show.length) {
+    bot.insertAdjacentHTML('beforeend', litNote(answer.show));
+    light(answer.show);
   }
   busy = false;
   renderChat();
-  msgsEl.scrollTop = msgsEl.scrollHeight;
+  scroll();
 }
 
-async function saveDraft(btn: HTMLButtonElement) {
-  const f = FLOW[btn.dataset.saveflow!];
-  btn.disabled = true;
-  btn.textContent = t('saving');
+async function saveDraft(button: HTMLButtonElement, id: string) {
+  const flow = FLOW[id];
+  button.disabled = true;
+  button.textContent = t('saving');
   try {
-    const r = await post('/flows', f);
-    const got: SaveFlowResponse = await r.json();
-    if (!r.ok || !got.ok) throw new Error(got.log.join(' ') || String(r.status));
-    if (!D.flows.some((x) => x.id === f.id)) D.flows.push(f);
-    btn.textContent = t('saved');
+    const res = await post('/flows', flow);
+    const saved: SaveFlowResponse = await res.json();
+    if (!res.ok || !saved.ok) throw new Error(saved.log.join(' ') || String(res.status));
+    if (!D.flows.some((f) => f.id === id)) D.flows.push(flow);
+    button.textContent = t('saved');
     renderUI();
   } catch (e) {
-    btn.disabled = false;
-    btn.textContent = `${t('saveErr')} (${(e as Error).message})`;
+    button.disabled = false;
+    button.textContent = `${t('saveErr')} (${errorText(e)})`;
   }
 }
 
@@ -252,18 +216,18 @@ async function saveDraft(btn: HTMLButtonElement) {
 // Opening a module with no description asks the agent to read it and describe it and its files, once.
 // A failure is retried once (the next render), then left alone.
 export const describing = new Set<string>();
-const failedOnce = new Set<string>(),
-  gaveUp = new Set<string>();
+const failedOnce = new Set<string>();
+const gaveUp = new Set<string>();
 export async function ensureDescribed(n: TreeNode | null | undefined) {
-  if (!served || !n || n.kind !== 'module' || describing.has(n.id) || gaveUp.has(n.id)) return;
-  const m = n.ref!;
+  if (!served || n?.kind !== 'module' || describing.has(n.id) || gaveUp.has(n.id)) return;
+  const m = n.ref;
   if (m.desc && m.files.every((f) => f.desc)) return;
   describing.add(n.id);
   renderCaption();
   try {
-    const r = await post('/describe', { id: n.id });
-    if (!r.ok) throw new Error(String(r.status));
-    const got: DescribeResponse = await r.json();
+    const res = await post('/describe', { id: n.id });
+    if (!res.ok) throw new Error(String(res.status));
+    const got: DescribeResponse = await res.json();
     if (got.module && !m.desc) m.desc = got.module;
     for (const f of m.files) if (got.files[f.path]) f.desc = got.files[f.path];
   } catch {
@@ -274,36 +238,35 @@ export async function ensureDescribed(n: TreeNode | null | undefined) {
 }
 
 export function wireChat() {
-  const form = $<HTMLFormElement>('ask');
+  const form = byId<HTMLFormElement>('ask');
   form.addEventListener('submit', (e) => {
     e.preventDefault();
-    const q = qEl.value;
-    qEl.value = '';
-    qEl.style.height = '';
-    void ask(q);
+    const question = input.value;
+    input.value = '';
+    input.style.height = '';
+    void ask(question);
   });
-  qEl.addEventListener('keydown', (e) => {
+  input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       form.requestSubmit();
     }
   });
-  qEl.addEventListener('input', () => {
-    qEl.style.height = 'auto';
-    qEl.style.height = Math.min(qEl.scrollHeight, 120) + 'px';
+  input.addEventListener('input', () => {
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 120) + 'px';
   });
-  msgsEl.addEventListener('click', (e) => {
-    const b = (e.target as HTMLElement).closest<HTMLButtonElement>(
-      '[data-ask],[data-relight],[data-unlight],[data-preview],[data-saveflow]',
-    );
-    if (!b) return;
-    const ds = b.dataset;
+  messages.addEventListener('click', (e) => {
+    const selector = '[data-ask],[data-relight],[data-unlight],[data-preview],[data-saveflow]';
+    const button = e.target instanceof Element ? e.target.closest<HTMLButtonElement>(selector) : null;
+    if (!button) return;
+    const ds = button.dataset;
     if (ds.ask) void ask(ds.ask);
     else if (ds.relight) light(ds.relight.split(','));
     else if (ds.unlight !== undefined) {
       state.hl = null;
       applyState();
     } else if (ds.preview) showFlow(ds.preview);
-    else if (ds.saveflow) void saveDraft(b);
+    else if (ds.saveflow) void saveDraft(button, ds.saveflow);
   });
 }

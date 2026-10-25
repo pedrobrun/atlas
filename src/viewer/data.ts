@@ -24,8 +24,6 @@ export const isUnder = (id: string, anc: string) => {
 /** Drop an npm scope from package names. */
 export const short = (s: string) => s.replace(/^@[^/]+\//, '');
 export const modLabel = (id: string) => (N[id] ? `${short(N[N[id].parent!].name)} › ${N[id].name}` : id);
-export const esc = (s: unknown) =>
-  String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 
 // Sources (repos) come from the project's config; colors fall back to a palette.
 const PALETTE = [0x8b74ff, 0x3b9ae8, 0xe3a23b, 0x2fb57c, 0xe25d8a, 0x6c7a89];

@@ -1,4 +1,6 @@
 // Interface strings, and picking content text in the current language.
+import { textOf } from '../types.ts';
+import type { Bilingual } from '../types.ts';
 import { state } from './state.ts';
 
 const pt = {
@@ -65,7 +67,7 @@ const pt = {
   needServe:
     'O chat precisa do servidor local. Rode <code>npm run serve -- &lt;projeto&gt;</code> e abra pelo endereço que ele mostrar.',
 };
-type Key = keyof typeof pt;
+export type Key = keyof typeof pt;
 const en: Record<Key, string> = {
   lens: 'Lens',
   flow: 'Flow',
@@ -143,13 +145,11 @@ const SUGG = {
   ],
 };
 
-export const t = (k: string): string => (state.lang === 'en' ? en : pt)[k as Key] ?? k;
+export const isKey = (k: string): k is Key => k in pt;
+export const t = (k: Key): string => (state.lang === 'en' ? en : pt)[k];
 export const suggestions = () => SUGG[state.lang];
 
 /** Content fields carry an `_en` twin; pick by the current language, falling back to the other. */
-export const L = (o: object | null | undefined, k: string): string => {
-  const r = o as Record<string, string | undefined> | null | undefined;
-  if (!r) return '';
-  return (state.lang === 'en' ? (r[k + '_en'] ?? r[k]) : (r[k] ?? r[k + '_en'])) ?? '';
-};
+export const L = <K extends string>(o: Bilingual<K> | null | undefined, k: K) =>
+  textOf(o, k, state.lang === 'en' ? 'en' : 'base');
 export const fmt = (n: number) => n.toLocaleString(state.lang === 'en' ? 'en-US' : 'pt-BR');

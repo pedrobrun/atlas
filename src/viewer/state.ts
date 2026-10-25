@@ -28,12 +28,25 @@ export const state: State = {
   hl: null,
   panel: null,
 };
-try {
-  Object.assign(state, JSON.parse(sessionStorage.getItem(KEY) || '{}'));
-} catch {
-  /* private window: start fresh */
+/** Takes back what a previous visit saved, field by field; anything malformed keeps its default. */
+function restore(saved: unknown) {
+  if (typeof saved !== 'object' || saved === null) return;
+  const s: Record<string, unknown> = { ...saved };
+  const text = (v: unknown) => (typeof v === 'string' ? v : null);
+  if (s.lens === 'cap' || s.lens === 'repo') state.lens = s.lens;
+  if (s.lang === 'en' || s.lang === 'pt') state.lang = s.lang;
+  if (s.panel === 'ask' || s.panel === 'details' || s.panel === null) state.panel = s.panel;
+  state.focus = text(s.focus) ?? state.focus;
+  state.sel = text(s.sel);
+  state.flow = text(s.flow) && FLOW[text(s.flow)!] ? text(s.flow)! : '';
+  if (typeof s.step === 'number') state.step = s.step;
+  if (Array.isArray(s.hl)) state.hl = s.hl.filter((id): id is string => typeof id === 'string');
 }
-if (state.flow && !FLOW[state.flow]) state.flow = '';
+try {
+  restore(JSON.parse(sessionStorage.getItem(KEY) || '{}'));
+} catch {
+  /* private window or corrupt entry: start fresh */
+}
 
 export const save = () => {
   try {

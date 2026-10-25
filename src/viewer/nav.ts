@@ -1,77 +1,75 @@
 // Moving around the map, and turning the state into roles, highlights and labels.
 import { FLOW, modLabel } from './data.ts';
 import { save, state } from './state.ts';
-import type { TreeNode } from './tree.ts';
+import type { Mark, TreeNode } from './tree.ts';
 import { countLoc, ENTER, inside, view } from './tree.ts';
 import type { Role } from './roles.ts';
 import { computeRoles, litSet, ROLE, stepModules } from './roles.ts';
-import { baseEmissive, frameFocus } from './scene.ts';
+import { frameFocus, setGlow } from './scene.ts';
 import { drawArcs } from './arcs.ts';
 import { renderUI } from './panels.ts';
-
-/** Shared, frame-to-frame view state. */
-export const nav = { roles: {} as Record<string, Role>, hovered: null as TreeNode | null };
 
 /** Applies the state to the scene. `instant` skips easing and the camera flight. */
 export function applyState(instant = false) {
   save();
-  const { T, root } = view;
-  const roles = (nav.roles = computeRoles());
+  const roles = (view.roles = computeRoles());
   const steps = stepModules();
   const lit = litSet();
-  const f = T[state.focus] || root;
-  for (const n of Object.values(T)) {
-    if (n.kind === 'root' || !n.mesh) continue;
-    const r = roles[n.id];
-    Object.assign(n.tgt, ROLE[r]);
-    if (r !== 'hidden') n.mesh.visible = true;
+  const focus = view.T[state.focus] || view.root;
+  for (const n of Object.values(view.T)) {
+    if (!n.gfx) continue;
+    const role = roles[n.id];
+    Object.assign(n.tgt, ROLE[role]);
+    if (role !== 'hidden') n.gfx.mesh.visible = true;
     if (instant) Object.assign(n.cur, n.tgt);
-    n.inFlow = !!state.flow && steps.includes(n.id);
-    n.curStep = !!state.flow && steps[state.step] === n.id;
-    n.lit = lit.has(n.id);
-    n.mesh.material.emissive.setHex(baseEmissive(n));
-    if (n.label) label(n, r, f, lit, steps);
+    n.mark = markOf(n.id, steps, lit);
+    setGlow(n);
+    const label = n.gfx.label;
+    if (!label) continue;
+    const look = labelFor(n, role, focus, lit, steps);
+    label.visible = !!look;
+    if (!look) continue;
+    label.element.className = look.cls;
+    label.element.querySelector('.n')!.textContent = look.text;
   }
   renderUI();
   drawArcs();
   if (!instant) frameFocus();
 }
 
-// Which boxes get a floating name, and how it looks.
-function label(n: TreeNode, r: Role, f: TreeNode, lit: Set<string>, steps: string[]) {
-  const el = n.label!.element;
-  const childOfFocus = n.parent === f || (n.parent?.kind === 'group' && n.parent.parent === f);
-  let show = false,
-    cls = 'lab';
-  if (lit.size && n.kind === 'module') {
-    show = lit.has(n.id);
-    cls += ' hl small';
-  } else if (lit.size && r === 'district' && n.parent !== view.root) show = false;
-  else if (state.flow) {
-    show = r === 'closed' || r === 'shell';
-    if (r === 'closed') cls += n.curStep ? ' step big' : ' step';
-    if (r === 'shell') cls += ' ctx big';
-  } else if (r === 'district') {
-    show = true;
-    if (n.parent === view.root) cls += ' big';
-  } else if (r === 'closed' && f === view.root && n.kind === 'module') {
-    show = state.lens === 'cap' && countLoc(n) >= 450;
-    cls += ' small';
-  } else if (r === 'closed' && childOfFocus) {
-    show = true;
-    if (n.kind === 'file' || n.kind === 'module') cls += ' small';
-    if (n.kind === 'cap' || n.kind === 'repo') cls += ' big';
-  } else if (r === 'context' && n.parent === (f.parent || view.root) && n.kind !== 'group') {
-    show = true;
-    cls += ' ctx';
+function markOf(id: string, steps: string[], lit: Set<string>): Mark {
+  if (state.flow) return steps[state.step] === id ? 'step' : steps.includes(id) ? 'flow' : 'none';
+  return lit.has(id) ? 'lit' : 'none';
+}
+
+// Which boxes get a floating name, and how it looks; null when the box shows none.
+function labelFor(n: TreeNode, role: Role, focus: TreeNode, lit: Set<string>, steps: string[]) {
+  const isChildOfFocus = n.parent === focus || (n.parent?.kind === 'group' && n.parent.parent === focus);
+  if (lit.size && n.kind === 'module') return lit.has(n.id) ? { cls: 'lab hl small', text: n.name } : null;
+  if (lit.size && role === 'district' && n.parent !== view.root) return null;
+  if (state.flow) {
+    if (role === 'shell') return { cls: 'lab ctx big', text: n.name };
+    if (role !== 'closed') return null;
+    const positions = steps.flatMap((s, i) => (s === n.id ? [i + 1] : [])).join(' · ');
+    return { cls: n.mark === 'step' ? 'lab step big' : 'lab step', text: `${positions}  ${modLabel(n.id)}` };
   }
-  el.className = cls;
-  n.label!.visible = show;
-  if (!show) return;
-  let name = n.kind === 'module' && state.flow ? modLabel(n.id) : n.name;
-  if (state.flow && r === 'closed')
-    name = `${steps.flatMap((s, i) => (s === n.id ? [i + 1] : [])).join(' · ')}  ${modLabel(n.id)}`;
-  el.querySelector('.n')!.textContent = name;
+  if (role === 'district') return { cls: n.parent === view.root ? 'lab big' : 'lab', text: n.name };
+  if (role === 'closed' && focus === view.root && n.kind === 'module') {
+    return state.lens === 'cap' && countLoc(n) >= 450 ? { cls: 'lab small', text: n.name } : null;
+  }
+  if (role === 'closed' && isChildOfFocus) {
+    const size =
+      n.kind === 'file' || n.kind === 'module'
+        ? ' small'
+        : n.kind === 'cap' || n.kind === 'repo'
+          ? ' big'
+          : '';
+    return { cls: 'lab' + size, text: n.name };
+  }
+  if (role === 'context' && n.parent === (focus.parent || view.root) && n.kind !== 'group') {
+    return { cls: 'lab ctx', text: n.name };
+  }
+  return null;
 }
 
 /** Opens a box; a file is selected inside its module. */
@@ -81,10 +79,11 @@ export function open(n: TreeNode) {
     state.focus = n.id;
     state.sel = null;
   } else {
-    state.focus = (n.parent && ENTER.has(n.parent.kind) ? n.parent : n.parent?.parent || view.root).id;
+    const holder = n.parent && ENTER.has(n.parent.kind) ? n.parent : n.parent?.parent || view.root;
+    state.focus = holder.id;
     state.sel = n.id;
   }
-  nav.hovered = null;
+  view.hovered = null;
   applyState();
 }
 
@@ -119,9 +118,9 @@ export function goTo(id: string) {
 }
 
 export function stepBy(d: number) {
-  const f = FLOW[state.flow];
-  if (!f) return;
-  state.step = Math.max(0, Math.min(f.steps.length - 1, state.step + d));
+  const flow = FLOW[state.flow];
+  if (!flow) return;
+  state.step = Math.max(0, Math.min(flow.steps.length - 1, state.step + d));
   applyState();
 }
 
@@ -131,9 +130,10 @@ export function light(ids: string[]) {
   state.sel = null;
   state.hl = ids;
   const lit = [...litSet()];
-  let f = view.T[state.focus] || view.root;
-  while (f !== view.root && (f.kind === 'group' || !lit.every((id) => inside(id, f)))) f = f.parent!;
-  state.focus = f.id;
+  let focus = view.T[state.focus] || view.root;
+  while (focus.parent && (focus.kind === 'group' || !lit.every((id) => inside(id, focus))))
+    focus = focus.parent;
+  state.focus = focus.id;
   applyState();
 }
 

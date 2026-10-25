@@ -6,11 +6,9 @@ import { CSS2DObject, CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer
 import { isStale } from '../types.ts';
 import { LEGACY_COLOR, REPO_COLOR } from './data.ts';
 import { state } from './state.ts';
-import type { TreeNode } from './tree.ts';
+import type { Gfx, Mark, TreeNode } from './tree.ts';
 import { buildTree, view } from './tree.ts';
 import { litSet, stepModules } from './roles.ts';
-import { animateArcs } from './arcs.ts';
-import { applyState, nav } from './nav.ts';
 
 const dark = matchMedia('(prefers-color-scheme: dark)').matches;
 
@@ -66,127 +64,102 @@ scene.add(world);
 
 const lighten = (hex: number, k: number) => new THREE.Color(hex).lerp(new THREE.Color(0xffffff), k);
 function colorFor(n: TreeNode) {
-  const c = REPO_COLOR[n.repo ?? ''] ?? 0x888888;
-  switch (n.kind) {
-    case 'cap':
-      return new THREE.Color(n.color);
-    case 'group':
-      return lighten(c, 0.72);
-    case 'repo':
-      return lighten(c, 0.5);
-    case 'area':
-      return lighten(c, 0.35);
-    case 'module':
-      return lighten(c, 0.08);
-    default:
-      return lighten(c, 0.45);
-  }
+  if (n.kind === 'cap') return new THREE.Color(n.color);
+  if (n.kind === 'root') return new THREE.Color(0x888888);
+  const k = { group: 0.72, repo: 0.5, area: 0.35, module: 0.08, file: 0.45 }[n.kind];
+  return lighten(REPO_COLOR[n.repo] ?? 0x888888, k);
 }
+const transparent = (color: number | THREE.Color, extra: object = {}) =>
+  new THREE.MeshStandardMaterial({ color, transparent: true, opacity: 0, ...extra });
+
 function makeLabel() {
   const el = document.createElement('div');
   el.className = 'lab';
   el.innerHTML = '<span class="n"></span>';
-  const o = new CSS2DObject(el);
-  o.visible = false;
-  scene.add(o);
-  return o;
+  const label = new CSS2DObject(el);
+  label.visible = false;
+  scene.add(label);
+  return label;
 }
 
-/** (Re)builds the tree for the current lens and one mesh per node. */
+function draw(n: TreeNode): Gfx {
+  const mesh = new THREE.Mesh(unitBox, transparent(colorFor(n), { roughness: 0.75, metalness: 0.02 }));
+  mesh.castShadow = n.kind !== 'group';
+  mesh.receiveShadow = true;
+  mesh.position.set(n.x, n.y, n.z);
+  mesh.scale.set(n.w, 0.001, n.d);
+  mesh.visible = false;
+  mesh.userData.node = n;
+  const edges = new THREE.LineSegments(
+    unitEdges,
+    new THREE.LineBasicMaterial({ color: dark ? 0xdedad2 : 0x2a2824, transparent: true, opacity: 0 }),
+  );
+  mesh.add(edges);
+  world.add(mesh);
+  const gfx: Gfx = { mesh, edges };
+  if (n.kind === 'module' && isStale(n.ref)) {
+    gfx.staleMark = new THREE.Mesh(
+      staleDot,
+      new THREE.MeshBasicMaterial({ color: 0xf08a24, transparent: true, opacity: 0 }),
+    );
+    world.add(gfx.staleMark);
+  }
+  if (n.kind === 'module' && n.ref.legacy) {
+    gfx.legacyMark = new THREE.Mesh(
+      unitBox,
+      transparent(LEGACY_COLOR[n.ref.legacy] ?? 0xb9b5ab, { roughness: 0.6 }),
+    );
+    world.add(gfx.legacyMark);
+  }
+  if (n.kind !== 'group') gfx.label = makeLabel();
+  return gfx;
+}
+
+/** (Re)builds the tree for the current lens and draws every node. Call applyState after. */
 export function buildScene() {
   scene.remove(world);
-  for (const n of Object.values(view.T))
-    if (n.label) {
-      scene.remove(n.label);
-      n.label.element.remove();
-    }
+  for (const n of Object.values(view.T)) {
+    if (!n.gfx?.label) continue;
+    scene.remove(n.gfx.label);
+    n.gfx.label.element.remove();
+  }
   world = new THREE.Group();
   scene.add(world);
   buildTree();
-  for (const n of Object.values(view.T)) {
-    if (n.kind === 'root') continue;
-    const mesh = new THREE.Mesh(
-      unitBox,
-      new THREE.MeshStandardMaterial({
-        color: colorFor(n),
-        roughness: 0.75,
-        metalness: 0.02,
-        transparent: true,
-        opacity: 0,
-      }),
-    );
-    mesh.castShadow = n.kind !== 'group';
-    mesh.receiveShadow = true;
-    mesh.position.set(n.x, n.y, n.z);
-    mesh.scale.set(n.w, 0.001, n.d);
-    mesh.visible = false;
-    mesh.userData.node = n;
-    const edges = new THREE.LineSegments(
-      unitEdges,
-      new THREE.LineBasicMaterial({ color: dark ? 0xdedad2 : 0x2a2824, transparent: true, opacity: 0 }),
-    );
-    mesh.add(edges);
-    world.add(mesh);
-    n.mesh = mesh;
-    n.edges = edges;
-    if (n.kind === 'module' && n.ref && isStale(n.ref)) {
-      n.staleMark = new THREE.Mesh(
-        staleDot,
-        new THREE.MeshBasicMaterial({ color: 0xf08a24, transparent: true, opacity: 0 }),
-      );
-      world.add(n.staleMark);
-    }
-    if (n.kind === 'module' && n.ref?.legacy) {
-      n.legacyMark = new THREE.Mesh(
-        unitBox,
-        new THREE.MeshStandardMaterial({
-          color: LEGACY_COLOR[n.ref.legacy] ?? 0xb9b5ab,
-          transparent: true,
-          opacity: 0,
-          roughness: 0.6,
-        }),
-      );
-      world.add(n.legacyMark);
-    }
-    if (n.kind !== 'group') n.label = makeLabel();
-  }
-  applyState(true);
+  for (const n of Object.values(view.T)) if (n.kind !== 'root') n.gfx = draw(n);
 }
 
-/** Highlight on top of a node's base color: current flow step, flow member, lit by the chat. */
-export const baseEmissive = (n: TreeNode) =>
-  n.curStep ? 0x7a1238 : n.inFlow ? 0x2e0614 : n.lit ? 0x6a4200 : 0x000000;
-export const hoverEmissive = dark ? 0x2a2a3a : 0x1d1d2a;
+/** Glow on top of a node's base color for each highlight. */
+const EMISSIVE: Record<Mark, number> = { none: 0x000000, lit: 0x6a4200, flow: 0x2e0614, step: 0x7a1238 };
+export const setGlow = (n: TreeNode, hovered = false) =>
+  n.gfx?.mesh.material.emissive.setHex(hovered ? (dark ? 0x2a2a3a : 0x1d1d2a) : EMISSIVE[n.mark]);
 
 // ---------- camera ----------
-let camGoal: THREE.Vector3 | null = null,
-  tgtGoal: THREE.Vector3 | null = null;
+let camGoal: THREE.Vector3 | null = null;
+let targetGoal: THREE.Vector3 | null = null;
 const VIEW_DIR = new THREE.Vector3(0.55, 0.85, 1).normalize();
-function frameNode(n: TreeNode) {
-  const { root } = view;
-  const size = n === root ? Math.hypot(n.w, n.d) * 0.8 : Math.max(n.w, n.d, n.h * 1.5);
-  const c = new THREE.Vector3(n.x, n.y + (n === root ? 0 : n.h * 0.35), n.z);
-  tgtGoal = c;
-  camGoal = c.clone().addScaledVector(VIEW_DIR, size * (n === root ? 1.2 : 1.55) + 3);
+function flyTo(target: THREE.Vector3, distance: number) {
+  targetGoal = target;
+  camGoal = target.clone().addScaledVector(VIEW_DIR, distance);
 }
 /** Flies to the focus, or to the bounding box of a flow or of the lit modules. */
 export function frameFocus() {
   const { T, root } = view;
   const lit = litSet();
   if (state.flow || lit.size) {
-    const box = new THREE.Box3();
+    const bounds = new THREE.Box3();
     for (const n of (state.flow ? stepModules() : [...lit]).map((id) => T[id]).filter(Boolean)) {
-      box
-        .expandByPoint(new THREE.Vector3(n.x - n.w / 2, n.y, n.z - n.d / 2))
-        .expandByPoint(new THREE.Vector3(n.x + n.w / 2, n.y + n.h, n.z + n.d / 2));
+      bounds.expandByPoint(new THREE.Vector3(n.x - n.w / 2, n.y, n.z - n.d / 2));
+      bounds.expandByPoint(new THREE.Vector3(n.x + n.w / 2, n.y + n.h, n.z + n.d / 2));
     }
-    const c = box.getCenter(new THREE.Vector3()),
-      sz = box.getSize(new THREE.Vector3());
-    tgtGoal = c;
-    camGoal = c.clone().addScaledVector(VIEW_DIR, Math.max(sz.x, sz.z) * 1.15 + 6);
+    const size = bounds.getSize(new THREE.Vector3());
+    flyTo(bounds.getCenter(new THREE.Vector3()), Math.max(size.x, size.z) * 1.15 + 6);
     return;
   }
-  frameNode(T[state.focus] || root);
+  const n = T[state.focus] || root;
+  const isRoot = n === root;
+  const size = isRoot ? Math.hypot(n.w, n.d) * 0.8 : Math.max(n.w, n.d, n.h * 1.5);
+  flyTo(new THREE.Vector3(n.x, n.y + (isRoot ? 0 : n.h * 0.35), n.z), size * (isRoot ? 1.2 : 1.55) + 3);
 }
 /** Starts the first flight from a little further out, so the map swoops in. */
 export function introCamera() {
@@ -194,14 +167,14 @@ export function introCamera() {
 }
 controls.addEventListener('start', () => {
   camGoal = null;
-  tgtGoal = null;
+  targetGoal = null;
 });
 
 /** Keeps the scene centred in the space the side panel leaves. */
 export function fitView() {
   camera.aspect = innerWidth / innerHeight;
-  const off = innerWidth > 900 && state.panel ? -225 : 0;
-  if (off) camera.setViewOffset(innerWidth, innerHeight, off, 0, innerWidth, innerHeight);
+  if (innerWidth > 900 && state.panel)
+    camera.setViewOffset(innerWidth, innerHeight, -225, 0, innerWidth, innerHeight);
   else camera.clearViewOffset();
   camera.updateProjectionMatrix();
 }
@@ -212,58 +185,56 @@ addEventListener('resize', () => {
 });
 
 // ---------- frame loop ----------
+/** Other modules animate their own objects each frame (seconds since load). */
+export const onFrame: ((t: number) => void)[] = [];
+
+function ease(n: TreeNode, gfx: Gfx, k: number, t: number) {
+  const { cur, tgt } = n;
+  cur.fill += (tgt.fill - cur.fill) * k;
+  cur.edge += (tgt.edge - cur.edge) * k;
+  cur.sy += (tgt.sy - cur.sy) * k;
+  const { mesh, edges, label, staleMark, legacyMark } = gfx;
+  if (tgt.fill === 0 && cur.fill < 0.01 && cur.edge < 0.01) {
+    for (const o of [mesh, staleMark, legacyMark, label]) if (o) o.visible = false;
+    return;
+  }
+  const lift = (n === view.hovered ? 0.12 : 0) + (n.mark === 'step' ? 0.6 + Math.sin(t * 2.5) * 0.12 : 0);
+  const top = n.y + lift + n.h * cur.sy;
+  mesh.visible = true;
+  mesh.position.y = n.y + lift;
+  mesh.scale.y = Math.max(0.001, n.h * cur.sy);
+  mesh.material.opacity = cur.fill;
+  mesh.material.depthWrite = cur.fill > 0.9;
+  mesh.castShadow = cur.fill > 0.5 && n.kind !== 'group';
+  edges.material.opacity = cur.edge;
+  if (legacyMark) {
+    legacyMark.visible = cur.fill > 0.5;
+    legacyMark.material.opacity = cur.fill;
+    legacyMark.position.set(n.x, top, n.z);
+    legacyMark.scale.set(n.w * 0.98, 0.06, n.d * 0.98);
+  }
+  if (staleMark) {
+    staleMark.visible = cur.fill > 0.5;
+    staleMark.material.opacity = cur.fill;
+    staleMark.scale.setScalar(Math.min(1, Math.max(n.w, 0.6)));
+    staleMark.position.set(n.x + n.w / 2 - 0.15, top + 0.3 + Math.sin(t * 3) * 0.07, n.z - n.d / 2 + 0.15);
+  }
+  // District names sit on the back edge so they don't cover what is inside.
+  label?.position.set(n.x, top + 0.2, view.roles[n.id] === 'district' ? n.z - n.d / 2 : n.z);
+}
+
 let last = performance.now();
 export function tick() {
-  const now = performance.now(),
-    dt = Math.min((now - last) / 1000, 0.05),
-    t = now / 1000;
+  const now = performance.now();
+  const dt = Math.min((now - last) / 1000, 0.05);
+  const t = now / 1000;
   last = now;
-  const k = 1 - Math.pow(0.0015, dt); // smooth approach, frame-rate independent
-  for (const n of Object.values(view.T)) {
-    if (!n.mesh || !n.edges) continue;
-    const c = n.cur,
-      g = n.tgt;
-    c.fill += (g.fill - c.fill) * k;
-    c.edge += (g.edge - c.edge) * k;
-    c.sy += (g.sy - c.sy) * k;
-    if (g.fill === 0 && c.fill < 0.01 && c.edge < 0.01) {
-      n.mesh.visible = false;
-      if (n.staleMark) n.staleMark.visible = false;
-      if (n.legacyMark) n.legacyMark.visible = false;
-      if (n.label) n.label.visible = false;
-      continue;
-    }
-    n.mesh.visible = true;
-    const lift = (n === nav.hovered ? 0.12 : 0) + (n.curStep ? 0.6 + Math.sin(t * 2.5) * 0.12 : 0);
-    n.mesh.position.y = n.y + lift;
-    n.mesh.scale.y = Math.max(0.001, n.h * c.sy);
-    n.mesh.material.opacity = c.fill;
-    n.mesh.material.depthWrite = c.fill > 0.9;
-    n.mesh.castShadow = c.fill > 0.5 && n.kind !== 'group';
-    n.edges.material.opacity = c.edge;
-    const top = n.y + lift + n.h * c.sy;
-    if (n.legacyMark) {
-      n.legacyMark.visible = c.fill > 0.5;
-      n.legacyMark.material.opacity = c.fill;
-      n.legacyMark.position.set(n.x, top, n.z);
-      n.legacyMark.scale.set(n.w * 0.98, 0.06, n.d * 0.98);
-    }
-    if (n.staleMark) {
-      n.staleMark.visible = c.fill > 0.5;
-      n.staleMark.material.opacity = c.fill;
-      n.staleMark.scale.setScalar(Math.min(1, Math.max(n.w, 0.6)));
-      n.staleMark.position.set(
-        n.x + n.w / 2 - 0.15,
-        top + 0.3 + Math.sin(t * 3) * 0.07,
-        n.z - n.d / 2 + 0.15,
-      );
-    }
-    if (n.label) n.label.position.set(n.x, top + 0.2, nav.roles[n.id] === 'district' ? n.z - n.d / 2 : n.z);
-  }
-  animateArcs(t);
-  if (camGoal && tgtGoal) {
+  const k = 1 - Math.pow(0.0015, dt); // frame-rate independent smoothing
+  for (const n of Object.values(view.T)) if (n.gfx) ease(n, n.gfx, k, t);
+  for (const hook of onFrame) hook(t);
+  if (camGoal && targetGoal) {
     camera.position.lerp(camGoal, k * 0.9);
-    controls.target.lerp(tgtGoal, k * 0.9);
+    controls.target.lerp(targetGoal, k * 0.9);
     if (camera.position.distanceTo(camGoal) < 0.05) camGoal = null;
   }
   controls.update();

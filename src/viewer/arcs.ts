@@ -1,41 +1,43 @@
 // Dependency arcs (for the hovered or opened module) and the lit path of a flow.
 import * as THREE from 'three';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
-import { D, esc } from './data.ts';
+import { D } from './data.ts';
+import { esc } from './dom.ts';
 import { state } from './state.ts';
 import type { TreeNode } from './tree.ts';
 import { modulesUnder, view } from './tree.ts';
 import { stepModules } from './roles.ts';
-import { nav } from './nav.ts';
-import { scene } from './scene.ts';
+import { onFrame, scene } from './scene.ts';
 
-let group: THREE.Group | null = null;
-const moving: { curve: THREE.QuadraticBezierCurve3; pulse: THREE.Mesh; off: number }[] = [];
-const USES = 0x5b50e8,
-  USED_BY = 0x14a08e,
-  FLOW_COLOR = 0xe5487f;
+const USES = 0x5b50e8;
+const USED_BY = 0x14a08e;
+const FLOW_COLOR = 0xe5487f;
 
-/** Nearest visible tree node for a module id. */
+const group = new THREE.Group();
+scene.add(group);
+/** Each arc's pulse travels along its curve, so the direction of the dependency shows. */
+const pulses: { curve: THREE.QuadraticBezierCurve3; pulse: THREE.Mesh; offset: number }[] = [];
+onFrame.push((t) => {
+  for (const p of pulses) p.pulse.position.copy(p.curve.getPoint((t * 0.45 + p.offset) % 1));
+});
+
+/** The nearest visible box for a module: the module itself, or the box hiding it. */
 function visibleProxy(id: string): TreeNode | null {
   for (let n: TreeNode | null = view.T[id]; n && n.kind !== 'root'; n = n.parent) {
-    const r = nav.roles[n.id];
-    if (r && r !== 'hidden' && n.kind !== 'group') return n;
+    const role = view.roles[n.id];
+    if (role && role !== 'hidden' && n.kind !== 'group') return n;
   }
   return null;
 }
 const topOf = (n: TreeNode) => new THREE.Vector3(n.x, n.y + n.h * n.cur.sy + 0.05, n.z);
 
 function clear() {
-  if (!group) {
-    group = new THREE.Group();
-    scene.add(group);
-  }
   for (const c of [...group.children]) {
     group.remove(c);
     if (c instanceof THREE.Mesh) c.geometry.dispose();
     if (c instanceof CSS2DObject) c.element.remove();
   }
-  moving.length = 0;
+  pulses.length = 0;
 }
 
 // Arcs scale with what is in view, so they read the same zoomed in or out.
@@ -43,77 +45,72 @@ function viewScale() {
   const f = state.flow ? view.root : view.T[state.focus] || view.root;
   return Math.min(1.2, Math.max(0.22, Math.max(f.w || 40, f.d || 40) / 14));
 }
-function arc(a: THREE.Vector3, b: THREE.Vector3, color: number, w: number, label: string | null) {
-  const sc = viewScale();
-  const mid = a.clone().lerp(b, 0.5);
-  mid.y = Math.max(a.y, b.y) + (0.6 + a.distanceTo(b) * 0.28) * Math.max(sc, 0.5);
-  const curve = new THREE.QuadraticBezierCurve3(a, mid, b);
-  group!.add(
-    new THREE.Mesh(
-      new THREE.TubeGeometry(curve, 48, (0.02 + Math.log2(1 + w) * 0.02) * sc, 6, false),
-      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.75 }),
-    ),
-  );
+
+function arc(from: THREE.Vector3, to: THREE.Vector3, color: number, weight: number, label: string | null) {
+  const scale = viewScale();
+  const thickness = Math.log2(1 + weight);
+  const mid = from.clone().lerp(to, 0.5);
+  mid.y = Math.max(from.y, to.y) + (0.6 + from.distanceTo(to) * 0.28) * Math.max(scale, 0.5);
+  const curve = new THREE.QuadraticBezierCurve3(from, mid, to);
+  const tube = new THREE.TubeGeometry(curve, 48, (0.02 + thickness * 0.02) * scale, 6, false);
+  group.add(new THREE.Mesh(tube, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.75 })));
   const pulse = new THREE.Mesh(
-    new THREE.SphereGeometry((0.07 + Math.log2(1 + w) * 0.025) * sc, 12, 10),
+    new THREE.SphereGeometry((0.07 + thickness * 0.025) * scale, 12, 10),
     new THREE.MeshBasicMaterial({ color }),
   );
-  group!.add(pulse);
-  moving.push({ curve, pulse, off: Math.random() });
+  group.add(pulse);
+  pulses.push({ curve, pulse, offset: Math.random() });
   if (label) {
     const el = document.createElement('div');
     el.className = 'lab arc';
     el.innerHTML = `<span class="n">${esc(label)}</span>`;
-    const o = new CSS2DObject(el);
-    o.position.copy(b).add(new THREE.Vector3(0, 0.35, 0));
-    group!.add(o);
+    const tag = new CSS2DObject(el);
+    tag.position.copy(to).add(new THREE.Vector3(0, 0.35, 0));
+    group.add(tag);
   }
+}
+
+function drawFlowPath() {
+  const steps = stepModules()
+    .map((id) => view.T[id])
+    .filter(Boolean);
+  for (let i = 1; i < steps.length; i++) {
+    if (steps[i] !== steps[i - 1]) arc(topOf(steps[i - 1]), topOf(steps[i]), FLOW_COLOR, 6, null);
+  }
+}
+
+/** The module whose dependencies to draw: hovered, else the selected or opened one. */
+function arcSource() {
+  const candidates = [view.hovered, view.T[state.sel ?? ''], view.T[state.focus]];
+  return candidates.find((n) => n?.kind === 'module') ?? null;
 }
 
 export function drawArcs() {
   clear();
-  const { T } = view;
-  if (state.flow) {
-    const steps = stepModules()
-      .map((id) => T[id])
-      .filter(Boolean);
-    for (let i = 1; i < steps.length; i++)
-      if (steps[i] !== steps[i - 1]) arc(topOf(steps[i - 1]), topOf(steps[i]), FLOW_COLOR, 6, null);
-    return;
-  }
-  const h = nav.hovered;
-  const src =
-    h?.kind === 'module'
-      ? h
-      : T[state.sel ?? '']?.kind === 'module'
-        ? T[state.sel!]
-        : T[state.focus]?.kind === 'module'
-          ? T[state.focus]
-          : null;
+  if (state.flow) return drawFlowPath();
+  const src = arcSource();
   if (!src) return;
-  // Edges leaving or entering the module, gathered per visible target (a module, or the box hiding it).
+  // Edges leaving or entering the module, gathered per visible target.
   const mine = new Set(modulesUnder(src));
-  const outs = new Map<TreeNode, { w: number; names: Set<string> }>(),
-    ins = new Map<TreeNode, { w: number; names: Set<string> }>();
+  type Link = { weight: number; modules: Set<string> };
+  const outgoing = new Map<TreeNode, Link>();
+  const incoming = new Map<TreeNode, Link>();
   for (const e of D.edges) {
-    const o = mine.has(e.from) && !mine.has(e.to),
-      i = mine.has(e.to) && !mine.has(e.from);
-    if (!o && !i) continue;
-    const p = visibleProxy(o ? e.to : e.from);
-    if (!p || p === src) continue;
-    const m = o ? outs : ins;
-    const cur = m.get(p) ?? { w: 0, names: new Set<string>() };
-    cur.w += e.w;
-    cur.names.add(o ? e.to : e.from);
-    m.set(p, cur);
+    const out = mine.has(e.from) && !mine.has(e.to);
+    if (!out && !(mine.has(e.to) && !mine.has(e.from))) continue;
+    const other = out ? e.to : e.from;
+    const target = visibleProxy(other);
+    if (!target || target === src) continue;
+    const links = out ? outgoing : incoming;
+    const link = links.get(target) ?? { weight: 0, modules: new Set<string>() };
+    link.weight += e.w;
+    link.modules.add(other);
+    links.set(target, link);
   }
-  const a = topOf(src);
-  const lab = (p: TreeNode, v: { names: Set<string> }) =>
-    p.kind === 'module' ? null : `${p.name}${v.names.size > 1 ? ` · ${v.names.size}` : ''}`;
-  for (const [p, v] of outs) arc(a, topOf(p), USES, v.w, lab(p, v));
-  for (const [p, v] of ins) arc(topOf(p), a, USED_BY, v.w, lab(p, v));
-}
-
-export function animateArcs(t: number) {
-  for (const m of moving) m.pulse.position.copy(m.curve.getPoint((t * 0.45 + m.off) % 1));
+  // A box standing in for hidden modules is named, with how many of them it hides.
+  const tag = (n: TreeNode, l: Link) =>
+    n.kind === 'module' ? null : `${n.name}${l.modules.size > 1 ? ` · ${l.modules.size}` : ''}`;
+  const here = topOf(src);
+  for (const [n, l] of outgoing) arc(here, topOf(n), USES, l.weight, tag(n, l));
+  for (const [n, l] of incoming) arc(topOf(n), here, USED_BY, l.weight, tag(n, l));
 }
