@@ -1,0 +1,1035 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Atlas</title>
+<style>
+:root {
+  --ink: #1d1c1a; --ink-2: #57544d; --ink-3: #8e8a81; --line: rgba(30, 28, 24, .1);
+  --card: rgba(255, 255, 255, .86); --chip: rgba(0, 0, 0, .05);
+  --accent: #4f46e5; --flow: #e5487f; --ok: #15965c; --warn: #d97a1e; --bad: #d64545;
+  --bg1: #fbfaf7; --bg2: #e9e6df;
+  --mono: ui-monospace, "SF Mono", Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --ink: #eceae5; --ink-2: #b3afa6; --ink-3: #7f7b73; --line: rgba(255, 255, 255, .1); --card: rgba(30, 30, 28, .86); --chip: rgba(255, 255, 255, .07);
+    --accent: #8b93ff; --bg1: #22211f; --bg2: #121211; color-scheme: dark; }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; height: 100%; overflow: hidden; }
+body { font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif; color: var(--ink);
+  background: radial-gradient(ellipse at 50% 30%, var(--bg1), var(--bg2)); }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; padding: 0; }
+#stage { position: fixed; inset: 0; }
+#stage canvas { display: block; }
+#labels { position: fixed; inset: 0; pointer-events: none; }
+
+.bar { position: fixed; top: calc(12px + env(safe-area-inset-top, 0px)); left: 16px; right: 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; pointer-events: none; z-index: 5; }
+.bar > * { pointer-events: auto; }
+.pill { background: var(--card); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid var(--line); border-radius: 12px; padding: 6px 10px; box-shadow: 0 6px 24px rgba(0,0,0,.06); display: flex; align-items: center; gap: 8px; }
+.brand { font-weight: 680; letter-spacing: -.01em; }
+.crumbs { display: flex; gap: 4px; align-items: center; }
+.crumbs button { color: var(--ink-3); padding: 2px 4px; border-radius: 6px; }
+.crumbs button:hover { color: var(--ink); background: var(--chip); }
+.crumbs button.cur { color: var(--ink); font-weight: 620; }
+.crumbs .sep { color: var(--ink-3); }
+.seg { display: inline-flex; background: var(--chip); border-radius: 8px; padding: 2px; }
+.seg button { padding: 3px 9px; border-radius: 6px; color: var(--ink-2); font-size: 12px; }
+.seg button.on { background: var(--card); color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+.lbl { color: var(--ink-3); font-size: 11.5px; }
+.spacer { flex: 1; }
+.stale { color: var(--warn); font-size: 12px; }
+.stale::before { content: "●"; margin-right: 5px; }
+select { font: inherit; font-size: 12px; color: var(--ink); background: var(--chip); border: 0; border-radius: 8px; padding: 4px 8px; }
+
+.hint { position: fixed; left: 16px; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); color: var(--ink-3); font-size: 12px; z-index: 5; }
+.hint kbd { font: 11px var(--mono); background: var(--chip); border-radius: 4px; padding: 1px 5px; }
+#up { position: fixed; left: 16px; bottom: calc(44px + env(safe-area-inset-bottom, 0px)); z-index: 5; }
+
+#card { position: fixed; top: calc(70px + env(safe-area-inset-top, 0px)); left: 66px; width: min(380px, calc(100vw - 82px)); max-height: calc(100vh - 100px); overflow: auto; z-index: 6;
+  background: var(--card); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid var(--line); border-radius: 16px; padding: 16px 18px 18px; box-shadow: 0 12px 40px rgba(0,0,0,.1);
+  transition: opacity .25s, transform .25s; }
+#card.off { opacity: 0; transform: translateX(16px); pointer-events: none; }
+/* drawers: each side panel slides out to its edge and leaves a handle behind */
+#card, #chat { transition: transform .32s cubic-bezier(.2,.8,.2,1), opacity .25s; }
+#card.collapsed { transform: translateX(calc(-100% - 80px)); opacity: 0; pointer-events: none; }
+#chat.collapsed { transform: translateX(calc(-100% - 80px)); opacity: 0; pointer-events: none; }
+/* left rail: one button per panel; both panels share the slot beside it */
+#rail { position: fixed; left: 16px; top: 50%; transform: translateY(-50%); z-index: 7; display: flex; flex-direction: column; gap: 4px; padding: 5px;
+  background: var(--card); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 6px 20px rgba(0,0,0,.08); }
+#rail button { width: 32px; padding: 10px 0; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 6px; color: var(--ink-2); font-size: 12px; font-weight: 650; }
+#rail button:hover { color: var(--ink); background: var(--chip); }
+#rail button.on { color: #fff; background: var(--accent); }
+#rail .v { writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; }
+#rail .i { font-size: 13px; line-height: 1; }
+.hint, #up { transition: left .32s cubic-bezier(.2,.8,.2,1); }
+#card h2 { font-size: 17px; margin: 0; letter-spacing: -.015em; line-height: 1.25; }
+#card h3 { font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-3); margin: 16px 0 6px; font-weight: 650; }
+#card .kind { color: var(--ink-3); font-size: 12px; margin-top: 4px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+#card .lede { font-size: 13.5px; margin: 10px 0 0; }
+#card .lede.second { font-size: 12.5px; color: var(--ink-2); margin-top: 6px; }
+#card .none { color: var(--ink-3); font-style: italic; }
+.chip { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; border-radius: 999px; padding: 1px 8px; background: var(--chip); color: var(--ink-2); }
+.chip.ok { color: var(--ok); } .chip.warn { color: var(--warn); } .chip.bad { color: var(--bad); }
+.dot { width: 8px; height: 8px; border-radius: 3px; display: inline-block; flex: none; }
+.staleBox { margin-top: 10px; border-left: 3px solid var(--warn); padding: 6px 10px; font-size: 12px; background: color-mix(in srgb, var(--warn) 9%, transparent); border-radius: 0 8px 8px 0; }
+.ev { font: 11.5px var(--mono); color: var(--accent); word-break: break-all; }
+.evn { color: var(--ink-3); font-size: 11.5px; margin-bottom: 4px; }
+.row { display: flex; flex-wrap: wrap; gap: 5px; }
+.nb { font-size: 12px; background: var(--chip); border-radius: 7px; padding: 3px 8px; display: inline-flex; gap: 6px; align-items: center; }
+.nb:hover { outline: 1px solid var(--accent); }
+.nb small { color: var(--ink-3); }
+.it { display: block; width: 100%; text-align: left; background: var(--chip); border-radius: 10px; padding: 8px 10px; margin-bottom: 6px; }
+.it:hover { outline: 1px solid var(--accent); }
+.it b { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-weight: 620; }
+.it span { display: block; color: var(--ink-2); font-size: 12px; margin-top: 2px; }
+.steps { list-style: none; margin: 8px 0 0; padding: 0; }
+.steps li { display: grid; grid-template-columns: 22px 1fr; gap: 8px; padding: 6px 6px; border-radius: 10px; cursor: pointer; }
+.steps li:hover { background: var(--chip); }
+.steps li.on { background: color-mix(in srgb, var(--flow) 12%, transparent); }
+.steps .n { width: 20px; height: 20px; border-radius: 10px; background: var(--flow); color: #fff; font-size: 11px; font-weight: 700; display: grid; place-items: center; }
+.steps .t { font-size: 12.5px; }
+.steps .u { font-size: 11.5px; color: var(--ink-3); }
+.flowNav { display: flex; gap: 6px; margin-top: 10px; }
+.flowNav button { flex: 1; background: var(--chip); border-radius: 8px; padding: 6px; font-weight: 600; }
+.flowNav button:hover { background: color-mix(in srgb, var(--flow) 15%, transparent); }
+.x { position: absolute; top: 10px; right: 12px; color: var(--ink-3); font-size: 16px; }
+
+.lab { pointer-events: none; transform: translateY(-4px); text-align: center; white-space: nowrap; transition: opacity .3s; }
+.lab .n { display: inline-block; font-size: 12px; font-weight: 620; color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 7px; padding: 2px 7px; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+.lab .s { display: block; font-size: 10.5px; color: var(--ink-3); margin-top: 2px; max-width: 220px; white-space: normal; text-shadow: 0 0 6px var(--bg1); }
+.lab.big .n { font-size: 14px; padding: 4px 10px; }
+.lab.ctx { opacity: .55; }
+.lab.ctx .n { font-weight: 500; }
+.lab.small .n { font-size: 10.5px; padding: 1px 5px; font-weight: 520; }
+.lab.step .n { background: var(--flow); color: #fff; border-color: transparent; }
+.lab.arc .n { font-size: 10.5px; font-weight: 520; color: var(--ink-2); }
+#tip { position: fixed; z-index: 7; pointer-events: none; background: var(--card); backdrop-filter: blur(10px); border: 1px solid var(--line); border-radius: 10px; padding: 7px 10px; font-size: 12px; max-width: 280px; box-shadow: 0 6px 20px rgba(0,0,0,.1); }
+#tip b { display: block; }
+#tip span { color: var(--ink-2); }
+#tip em { display: block; color: var(--ink-3); font-style: normal; font-size: 11px; margin-top: 3px; }
+#chat { position: fixed; top: calc(70px + env(safe-area-inset-top, 0px)); left: 66px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); width: min(380px, calc(100vw - 82px)); z-index: 6;
+  display: flex; flex-direction: column; background: var(--card); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 12px 40px rgba(0,0,0,.1); }
+#chat .head { display: flex; align-items: center; gap: 8px; padding: 12px 14px 10px; border-bottom: 1px solid var(--line); }
+#chat .head b { font-size: 13.5px; } #chat .head small { color: var(--ink-3); font-size: 11.5px; } #chat .head .x { position: static; margin-left: auto; }
+#msgs { flex: 1; overflow: auto; padding: 14px; display: flex; flex-direction: column; gap: 14px; }
+.msg.user { align-self: flex-end; background: var(--accent); color: #fff; border-radius: 14px 14px 4px 14px; padding: 7px 11px; max-width: 88%; white-space: pre-wrap; }
+.msg.bot { font-size: 13px; line-height: 1.5; }
+.msg.bot p { margin: 0 0 8px; } .msg.bot ul, .msg.bot ol { margin: 0 0 8px; padding-left: 18px; } .msg.bot li { margin-bottom: 3px; }
+.msg.bot code { font: 11.5px var(--mono); background: var(--chip); border-radius: 4px; padding: 0 4px; word-break: break-all; }
+.msg .status { font: 11px var(--mono); color: var(--ink-3); margin-bottom: 6px; display: flex; gap: 6px; align-items: center; }
+.msg .status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: blink 1s infinite; }
+@keyframes blink { 50% { opacity: .2; } }
+.cite { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; background: var(--chip); border-radius: 6px; padding: 0 6px; margin: 0 1px; vertical-align: 1px; }
+.cite:hover { outline: 1px solid var(--accent); }
+#caption { position: fixed; left: 50%; bottom: calc(46px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 5; width: min(600px, calc(100vw - 32px));
+  background: var(--card); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid var(--line); border-radius: 14px; padding: 12px 16px; box-shadow: 0 10px 30px rgba(0,0,0,.1);
+  transition: left .32s cubic-bezier(.2,.8,.2,1); }
+body.paneled #caption { left: calc(50% + 225px); width: min(600px, calc(100vw - 500px)); }
+#caption .k { font-size: 11px; color: var(--ink-3); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+#caption b { display: block; font-size: 15px; margin: 2px 0 4px; letter-spacing: -.01em; }
+#caption .d { font-size: 13.5px; }
+#caption .t { font-size: 12px; color: var(--ink-2); margin-top: 4px; }
+#caption .t code { font: 11px var(--mono); color: var(--accent); }
+#caption .wait::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); margin-right: 7px; animation: blink 1s infinite; }
+#caption .nav { position: absolute; right: 12px; top: 10px; display: flex; gap: 4px; }
+#caption .nav button { background: var(--chip); border-radius: 7px; width: 28px; height: 24px; font-weight: 700; }
+.draftCard { margin-top: 8px; border: 1px solid color-mix(in srgb, var(--flow) 45%, transparent); border-radius: 12px; padding: 10px 12px; background: color-mix(in srgb, var(--flow) 6%, transparent); }
+.draftCard .k { font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em; color: var(--flow); font-weight: 700; }
+.draftCard b { display: block; font-size: 13.5px; margin: 2px 0; }
+.draftCard p { margin: 0 0 6px; color: var(--ink-2); font-size: 12px; }
+.draftCard ol { margin: 0 0 8px; padding-left: 18px; font-size: 12px; color: var(--ink-2); }
+.draftCard .acts { display: flex; gap: 6px; }
+.draftCard .acts button { flex: 1; border-radius: 8px; padding: 6px; font-weight: 600; background: var(--chip); }
+.draftCard .acts button.pri { background: var(--flow); color: #fff; }
+.draftCard .acts button:disabled { opacity: .6; }
+.lit { margin-top: 4px; display: flex; gap: 8px; align-items: center; font-size: 11.5px; color: #b26d00; }
+.lit button { color: var(--ink-3); text-decoration: underline; }
+.sugg { display: grid; gap: 6px; } .sugg button { text-align: left; background: var(--chip); border-radius: 10px; padding: 8px 10px; font-size: 12.5px; } .sugg button:hover { outline: 1px solid var(--accent); }
+.empty { color: var(--ink-2); font-size: 12.5px; }
+.empty code { font: 11.5px var(--mono); background: var(--chip); border-radius: 4px; padding: 1px 5px; }
+#chat form { border-top: 1px solid var(--line); padding: 10px; display: grid; gap: 6px; }
+#about { font-size: 11px; color: var(--ink-3); } #about b { color: var(--ink-2); font-weight: 600; }
+#chat .row2 { display: flex; gap: 8px; align-items: flex-end; }
+#q { flex: 1; resize: none; font: inherit; color: var(--ink); background: var(--chip); border: 0; border-radius: 10px; padding: 8px 10px; max-height: 120px; outline: none; }
+#q:focus { box-shadow: 0 0 0 2px var(--accent); }
+#send { background: var(--accent); color: #fff; border-radius: 10px; padding: 7px 12px; font-weight: 600; }
+#send:disabled { opacity: .4; }
+body.paneled .hint, body.paneled #up { left: 462px; }
+.hint { left: 66px !important; } body.paneled .hint { left: 462px !important; } #up { left: 66px; }
+.lab.hl .n { background: #f2a71b; color: #2a1a00; border-color: transparent; }
+@media (max-width: 700px) { #chat { bottom: auto; height: 50vh; } }
+@media (max-width: 700px) { #card { top: auto; bottom: 12px; max-height: 45vh; } .hint { display: none; } }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<div id="labels"></div>
+<div class="bar">
+  <div class="pill"><span class="brand">◎ Atlas</span><div class="crumbs" id="crumbs"></div></div>
+  <div class="spacer"></div>
+  <div class="pill"><div class="seg" id="lang"><button data-v="en">EN</button><button data-v="pt">PT</button></div></div>
+  <div class="pill"><span class="lbl" data-t="lens">Lente</span><div class="seg" id="lens"><button data-v="cap">Capabilities</button><button data-v="repo">Repos</button></div></div>
+  <div class="pill"><span class="lbl" data-t="flow">Fluxo</span><select id="flowSel"><option value="">—</option></select></div>
+  <button class="pill stale" id="stalePill" hidden></button>
+</div>
+<button class="pill" id="up" hidden data-t="back">↑ voltar</button>
+<div class="hint" data-t-html="hint"></div>
+<aside id="card"></aside>
+<div id="caption" hidden></div>
+<nav id="rail"><button data-panel="ask"><span class="i">✦</span><span class="v" data-t="ask">Ask</span></button><button data-panel="details"><span class="i">◧</span><span class="v" data-t="details">Details</span></button></nav>
+<section id="chat" class="collapsed">
+  <div class="head"><b>✦ Atlas</b><small data-t="chatSub"></small></div>
+  <div id="msgs"></div>
+  <form id="ask"><div id="about"></div><div class="row2"><textarea id="q" rows="1"></textarea><button id="send" type="submit" data-t="send">Send</button></div></form>
+</section>
+<div id="tip" hidden></div>
+
+<script>/*__THREE__*/</script>
+<script>/*__ORBIT__*/</script>
+<script>/*__CSS2D__*/</script>
+<script>
+const D = /*__DATA__*/null;
+document.title = `Atlas · ${D.config.name}`;
+const I18N = {
+  pt: { lens: 'Lente', reader: 'Leitor', biz: 'Negócio', tech: 'Técnico', flow: 'Fluxo', back: '↑ voltar',
+    hint: 'arraste para girar · <kbd>scroll</kbd> zoom · clique numa caixa para abrir · <kbd>Esc</kbd> volta',
+    modules: 'módulos', lines: 'linhas', deps: 'dependências', stale: 'desatualizados', clickFocus: 'clique para focar', clickOpen: 'clique para abrir',
+    test: '✓ teste', type: '✓ tipo', partial: '◐ parcial', paper: '⚠ só no papel', verified: 'verificado', inferred: 'inferido',
+    noDesc: 'Sem descrição ainda: nasce no próximo sync ou quando alguém perguntar.',
+    rootHow: 'Cada bloco é um módulo; a cor diz o repo e o volume, a quantidade de código.', rootCap: 'Os contornos de vidro agrupam os módulos pelo que fazem, não por onde moram.', rootRepo: 'Os contornos de vidro são os repos e as pastas.', rootHover: 'Passe o mouse para ver dependências; clique para abrir.',
+    flows: 'Fluxos', rules: 'Regras que não podem quebrar', rulesShort: 'Regras', where: 'Onde mora', flowsHere: 'Fluxos que passam aqui', hoverHint: 'Passe o mouse num módulo para ver as dependências; clique para abrir.',
+    file: 'arquivo', module: 'módulo', area: 'área', repo: 'repo', changed: '<b>O código mudou</b> depois desta descrição', changedTail: 'A estrutura está certa; o texto pode não estar. Regenera no próximo <code>Stop</code>.',
+    evidence: 'Evidência', ask: 'Perguntar', details: 'Detalhes', describing: 'descrevendo… o agente está lendo os arquivos', generated: 'gerado', draft: 'Rascunho de fluxo', preview: '▶ Ver em 3D', saveFlow: 'Salvar no Atlas', saved: '✓ Salvo no Atlas', saving: 'salvando…', saveErr: 'Não consegui salvar', send: 'Enviar', chatSub: 'pergunte sobre a arquitetura', about: 'Sobre', thinking: 'pensando…', lit: 'módulos acesos', clear: 'limpar', placeholder: 'Como funciona…? O que quebra se…?', needServe: 'O chat precisa do servidor local. Rode <code>atlas serve</code> (neste protótipo: <code>node serve.mjs</code>) e abra pelo endereço que ele mostrar.', chatErr: 'Não consegui responder', sugg: ['Quero documentar um fluxo', 'Me dá um tour pela arquitetura', 'Quais regras não são garantidas por teste?'], uses: 'Usa', usedBy: 'Usado por', flowWord: 'fluxo', steps: 'passos', noAnchor: 'sem âncora: passo inferido', prev: '← anterior', next: 'próximo →' },
+  en: { lens: 'Lens', reader: 'Reader', biz: 'Business', tech: 'Technical', flow: 'Flow', back: '↑ back',
+    hint: 'drag to orbit · <kbd>scroll</kbd> zoom · click a box to open · <kbd>Esc</kbd> goes back',
+    modules: 'modules', lines: 'lines', deps: 'dependencies', stale: 'stale', clickFocus: 'click to focus', clickOpen: 'click to open',
+    test: '✓ test', type: '✓ type', partial: '◐ partial', paper: '⚠ only on paper', verified: 'verified', inferred: 'inferred',
+    noDesc: 'No description yet: written on the next sync or the first time someone asks.',
+    rootHow: 'Each block is a module; color is the repo, volume is the amount of code.', rootCap: 'The glass outlines group modules by what they do, not where they live.', rootRepo: 'The glass outlines are the repos and folders.', rootHover: 'Hover to see dependencies; click to open.',
+    flows: 'Flows', rules: "Rules that can't break", rulesShort: 'Rules', where: 'Where it lives', flowsHere: 'Flows through here', hoverHint: 'Hover a module to see its dependencies; click to open.',
+    file: 'file', module: 'module', area: 'area', repo: 'repo', changed: '<b>The code changed</b> after this description', changedTail: 'The structure is right; the text may not be. Regenerated on the next <code>Stop</code>.',
+    evidence: 'Evidence', ask: 'Ask', details: 'Details', describing: 'describing… the agent is reading the files', generated: 'generated', draft: 'Flow draft', preview: '▶ Preview in 3D', saveFlow: 'Save to Atlas', saved: '✓ Saved to Atlas', saving: 'saving…', saveErr: "Couldn't save", send: 'Send', chatSub: 'ask about the architecture', about: 'About', thinking: 'thinking…', lit: 'modules lit', clear: 'clear', placeholder: 'How does…? What breaks if…?', needServe: 'Chat needs the local server. Run <code>atlas serve</code> (in this prototype: <code>node serve.mjs</code>) and open the address it prints.', chatErr: "Couldn't answer", sugg: ['I want to document a flow', 'Give me a tour of the architecture', 'Which rules are not enforced by a test?'], uses: 'Uses', usedBy: 'Used by', flowWord: 'flow', steps: 'steps', noAnchor: 'no anchor: inferred step', prev: '← previous', next: 'next →' },
+};
+const t = (k) => I18N[state.lang]?.[k] ?? I18N.pt[k] ?? k;
+// Content fields carry an `_en` twin; pick by the current language, falling back to the other.
+const L = (o, k) => !o ? '' : state.lang === 'en' ? (o[k + '_en'] ?? o[k]) : (o[k] ?? o[k + '_en']);
+const fmt = (n) => n.toLocaleString(state.lang === 'en' ? 'en-US' : 'pt-BR');
+const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+
+// ---------------- data indexes ----------------
+const N = Object.fromEntries(D.nodes.map((n) => [n.id, n]));
+const kids = {};
+for (const n of D.nodes) if (n.parent) (kids[n.parent] ??= []).push(n.id);
+const CAP = Object.fromEntries(D.caps.map((c) => [c.id, c]));
+const FLOW = Object.fromEntries(D.flows.map((f) => [f.id, f]));
+const INV = Object.fromEntries(D.invariants.map((i) => [i.id, i]));
+const modules = D.nodes.filter((n) => n.kind === 'module');
+const repoOf = (id) => { let n = N[id]; while (n && n.kind !== 'repo') n = N[n.parent]; return n ? n.id.split(':')[1] : null; };
+const isUnder = (id, anc) => { let n = N[id]; while (n) { if (n.id === anc) return true; n = N[n.parent]; } return false; };
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const short = (s) => s.replace(/^@[^/]+\//, ''); // drop an npm scope from package names
+const modLabel = (id) => N[id] ? `${short(N[N[id].parent].name)} › ${N[id].name}` : id;
+// Sources (repos) come from the project's config; colors fall back to a palette.
+const PALETTE = [0x8b74ff, 0x3b9ae8, 0xe3a23b, 0x2fb57c, 0xe25d8a, 0x6c7a89];
+const SOURCES = D.config.sources;
+const repoName = Object.fromEntries(SOURCES.map((x) => [x.id, x.name]));
+const REPO_COLOR = Object.fromEntries(SOURCES.map((x, i) => [x.id, x.color ? parseInt(x.color.replace('#', ''), 16) : PALETTE[i % PALETTE.length]]));
+const LEGACY_COLOR = { extracted: 0x8b74ff, duplicate: 0xe25555, candidate: 0xe3a23b, local: 0xb9b5ab };
+const CAP_COLOR = [0xc9b8f2, 0x9fd3e6, 0xf2b8a8, 0xa9d9a4, 0xf3cf86, 0xb7c3f0, 0xe6b3d6, 0x9fdccb, 0xd8cfbf];
+
+const state = { lens: 'cap', focus: 'root', sel: null, flow: '', step: 0, lang: D.config?.lang || 'pt' };
+try { Object.assign(state, JSON.parse(sessionStorage.getItem('atlas3d') || '{}')); } catch {}
+state.aud = 'biz';
+const save = () => { try { sessionStorage.setItem('atlas3d', JSON.stringify(state)); } catch {} };
+
+// ---------------- tree per lens ----------------
+// Every lens produces the same shape: root → containers → … → modules → files.
+// 'group' nodes are plates that only organise space; clicking passes through them.
+let T = {}; // id → tree node
+// Framework file names say nothing on their own (four route.ts side by side); prefix their folder.
+const GENERIC = /^(route|page|layout|index|loading|react|types)\.(t|j)sx?$/;
+const fileLabel = (p) => { const parts = p.split('/'), name = parts.pop(); return GENERIC.test(name) ? `${parts.pop()}/${name}` : name; };
+function moduleNode(m) {
+  return { id: m.id, kind: 'module', name: m.name, ref: m, repo: repoOf(m.id),
+    children: m.files.map((f) => ({ id: m.id + '#' + f.path, kind: 'file', name: fileLabel(f.path), file: f, repo: repoOf(m.id), children: [] })) };
+}
+function buildTree() {
+  const root = { id: 'root', kind: 'root', name: D.config.name, children: [] };
+  if (state.lens === 'cap') {
+    root.children = D.caps.map((c, i) => ({ id: 'cap:' + c.id, kind: 'cap', name: L(c, 'name'), cap: c, color: CAP_COLOR[i % CAP_COLOR.length],
+      children: SOURCES.map((x) => x.id).map((r) => ({ id: `grp:${c.id}:${r}`, kind: 'group', name: repoName[r], repo: r,
+        children: modules.filter((m) => m.cap === c.id && repoOf(m.id) === r).map(moduleNode) })).filter((g) => g.children.length) }));
+  } else {
+    root.children = SOURCES.map((x) => 'repo:' + x.id).map((r) => ({ id: r, kind: 'repo', name: repoName[r.slice(5)], ref: N[r], repo: r.slice(5),
+      children: (kids[r] || []).map((a) => ({ id: a, kind: 'area', name: short(N[a].name), ref: N[a], repo: r.slice(5),
+        children: (kids[a] || []).map((id) => moduleNode(N[id])) })) }));
+  }
+  T = {};
+  (function walk(n, p) { n.parent = p; T[n.id] = n; n.children.forEach((c) => walk(c, n)); })(root, null);
+  layout(root); place(root, 0, 0, 0);
+  return root;
+}
+const ENTER = new Set(['cap', 'repo', 'area', 'module']);
+const GAP = { root: 2.4, cap: 0.6, group: 0.32, repo: 0.9, area: 0.4, module: 0.16 };
+const PAD = { root: 0, cap: 0.8, group: 0.3, repo: 0.8, area: 0.4, module: 0.22 };
+function layout(n) {
+  if (n.kind === 'file') {
+    const l = n.file.loc, s = Math.min(1.5, 0.32 + Math.sqrt(l) / 22);
+    Object.assign(n, { w: s, d: s, h: 0.1 + Math.log10(l + 1) * 0.32, stack: 0 }); n.stack = n.h; return;
+  }
+  n.children.forEach(layout);
+  const items = [...n.children].sort((a, b) => b.w * b.d - a.w * a.d);
+  const gap = GAP[n.kind];
+  const area = items.reduce((s, it) => s + (it.w + gap) * (it.d + gap), 0);
+  const rowW = Math.max(items[0]?.w || 1, Math.sqrt(area) * (n.kind === 'root' ? 1.5 : 1.2));
+  let x = 0, z = 0, rowD = 0, maxW = 0;
+  for (const it of items) {
+    if (x > 0 && x + it.w > rowW) { z += rowD + gap; x = 0; rowD = 0; }
+    it.lx = x + it.w / 2; it.lz = z + it.d / 2; x += it.w + gap; rowD = Math.max(rowD, it.d); maxW = Math.max(maxW, x - gap);
+  }
+  const W = maxW || 1, Dp = (z + rowD) || 1;
+  items.forEach((it) => { it.lx -= W / 2; it.lz -= Dp / 2; });
+  const pad = PAD[n.kind];
+  n.w = W + 2 * pad; n.d = Dp + 2 * pad;
+  const inner = Math.max(0, ...n.children.map((c) => c.stack));
+  if (n.kind === 'group') { n.h = 0.07; n.stack = n.h + inner; }
+  else if (n.kind === 'root') { n.h = 0; n.stack = inner; }
+  else { n.h = inner + (n.kind === 'module' ? 0.3 : n.kind === 'area' ? 0.5 : 0.9 + Math.log10(1 + n.children.length) * 1.2); n.stack = n.h; }
+}
+function place(n, x, y, z) {
+  n.x = x; n.y = y; n.z = z;
+  const floor = y + (n.kind === 'group' ? n.h : n.kind === 'root' ? 0 : 0.02);
+  n.children.forEach((c) => place(c, x + c.lx, floor, z + c.lz));
+}
+
+// ---------------- three.js scene ----------------
+const stage = document.getElementById('stage');
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+stage.appendChild(renderer.domElement);
+const labelRenderer = new THREE.CSS2DRenderer();
+labelRenderer.setSize(innerWidth, innerHeight);
+document.getElementById('labels').appendChild(labelRenderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(38, innerWidth / innerHeight, 0.1, 2000);
+camera.position.set(40, 45, 55);
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.dampingFactor = 0.08;
+controls.maxPolarAngle = Math.PI * 0.47; controls.minDistance = 2; controls.maxDistance = 220;
+controls.screenSpacePanning = false;
+
+scene.add(new THREE.HemisphereLight(0xffffff, dark ? 0x30302c : 0xd9d4c8, dark ? 0.5 : 0.58));
+const sun = new THREE.DirectionalLight(0xffffff, dark ? 0.7 : 0.62);
+sun.position.set(-30, 60, 25); sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -70, right: 70, top: 70, bottom: -70, near: 1, far: 200 });
+sun.shadow.bias = -0.0005;
+scene.add(sun);
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(600, 600), new THREE.ShadowMaterial({ opacity: dark ? 0.35 : 0.13 }));
+ground.rotation.x = -Math.PI / 2; ground.position.y = -0.01; ground.receiveShadow = true;
+scene.add(ground);
+const grid = new THREE.GridHelper(600, 300, dark ? 0x2c2b28 : 0xdcd8cf, dark ? 0x232220 : 0xe6e2da);
+grid.position.y = -0.02; scene.add(grid);
+
+const unitBox = new THREE.BoxGeometry(1, 1, 1); unitBox.translate(0, 0.5, 0);
+const unitEdges = new THREE.EdgesGeometry(unitBox);
+let world = new THREE.Group(); scene.add(world);
+const arcs = new THREE.Group(); scene.add(arcs);
+let root;
+
+const lighten = (hex, k) => new THREE.Color(hex).lerp(new THREE.Color(0xffffff), k);
+function colorFor(n) {
+  if (n.kind === 'cap') return new THREE.Color(n.color);
+  if (n.kind === 'group') return lighten(REPO_COLOR[n.repo], 0.72);
+  if (n.kind === 'repo') return lighten(REPO_COLOR[n.repo], 0.5);
+  if (n.kind === 'area') return lighten(REPO_COLOR[n.repo], 0.35);
+  if (n.kind === 'module') return lighten(REPO_COLOR[n.repo], 0.08);
+  return lighten(REPO_COLOR[n.repo], 0.45);
+}
+function makeLabel(n) {
+  const el = document.createElement('div');
+  el.className = 'lab';
+  el.innerHTML = `<span class="n"></span><span class="s"></span>`;
+  const o = new THREE.CSS2DObject(el);
+  o.visible = false;
+  scene.add(o);
+  return o;
+}
+function buildScene() {
+  world.parent && scene.remove(world);
+  for (const n of Object.values(T)) n.label && scene.remove(n.label);
+  world = new THREE.Group(); scene.add(world);
+  root = buildTree();
+  for (const n of Object.values(T)) {
+    if (n.kind === 'root') continue;
+    const mat = new THREE.MeshStandardMaterial({ color: colorFor(n), roughness: 0.75, metalness: 0.02, transparent: true, opacity: 0 });
+    const mesh = new THREE.Mesh(unitBox, mat);
+    mesh.castShadow = n.kind !== 'group'; mesh.receiveShadow = true;
+    mesh.position.set(n.x, n.y, n.z); mesh.scale.set(n.w, 0.001, n.d); mesh.visible = false;
+    mesh.userData.node = n;
+    const edges = new THREE.LineSegments(unitEdges, new THREE.LineBasicMaterial({ color: dark ? 0xdedad2 : 0x2a2824, transparent: true, opacity: 0 }));
+    mesh.add(edges);
+    world.add(mesh);
+    n.mesh = mesh; n.edges = edges;
+    n.cur = { fill: 0, edge: 0, sy: 0.001 }; n.tgt = { fill: 0, edge: 0, sy: 0.001 };
+    if (n.kind === 'module' && n.ref.stale) {
+      const s = new THREE.Mesh(new THREE.SphereGeometry(0.16, 16, 12), new THREE.MeshBasicMaterial({ color: 0xf08a24, transparent: true, opacity: 0 }));
+      world.add(s); n.staleMark = s;
+    }
+    if (n.kind === 'module' && n.ref.legacy) {
+      const cap = new THREE.Mesh(unitBox, new THREE.MeshStandardMaterial({ color: LEGACY_COLOR[n.ref.legacy], transparent: true, opacity: 0, roughness: 0.6 }));
+      world.add(cap); n.legacyMark = cap;
+    }
+    if (n.kind !== 'group') n.label = makeLabel(n);
+  }
+  applyState(true);
+}
+
+// ---------------- visibility states ----------------
+// Each node gets a role from the current focus; roles map to fill/edge opacity and height.
+const ROLE = {
+  hidden: { fill: 0, edge: 0, sy: 0.001 },
+  closed: { fill: 1, edge: 0.5, sy: 1 },
+  plate: { fill: 0.95, edge: 0.18, sy: 1 },
+  glass: { fill: 0.06, edge: 0.65, sy: 1 },
+  district: { fill: 0.045, edge: 0.42, sy: 1 },
+  dim: { fill: 0.16, edge: 0.06, sy: 0.3 },
+  shell: { fill: 0.025, edge: 0.18, sy: 1 },
+  context: { fill: 0.1, edge: 0.1, sy: 1 },
+  far: { fill: 0.035, edge: 0.05, sy: 1 },
+  ghost: { fill: 0.07, edge: 0.08, sy: 1 },
+};
+function ancestors(n) { const a = []; for (let p = n.parent; p; p = p.parent) a.push(p); return a; }
+// Modules the chat asked to light up (capability ids expand to their modules).
+function litSet() {
+  if (!state.hl?.length || state.flow) return new Set();
+  return new Set(state.hl.flatMap((id) => T[id] ? modulesUnder(T[id]) : modules.filter((m) => 'cap:' + m.cap === id).map((m) => m.id)).filter((id) => T[id]));
+}
+function baseEmissive(n) { return n.cur_step ? 0x7a1238 : n.hl ? 0x2e0614 : n.lit ? 0x6a4200 : 0x000000; }
+function stepModules() { const f = FLOW[state.flow]; return f ? f.steps.map((s) => s.unit) : []; }
+
+function computeRoles() {
+  const roles = {};
+  for (const id in T) roles[id] = 'hidden';
+  const showInside = (n) => { // reveal the children of n, opening groups
+    for (const c of n.children) {
+      if (c.kind === 'group') { roles[c.id] = 'plate'; showInside(c); }
+      else roles[c.id] = 'closed';
+    }
+  };
+  if (state.flow) {
+    const steps = new Set(stepModules());
+    const anc = new Set();
+    for (const id of steps) if (T[id]) ancestors(T[id]).forEach((a) => anc.add(a.id));
+    for (const c of root.children) roles[c.id] = anc.has(c.id) ? 'shell' : 'ghost';
+    for (const id of anc) if (T[id] && T[id].kind === 'group') roles[id] = 'context';
+    for (const id of steps) if (T[id]) roles[id] = 'closed';
+    return roles;
+  }
+  const f = T[state.focus] || root;
+  const openDeep = (n) => {
+    for (const c of n.children) {
+      if (c.kind === 'group') { roles[c.id] = 'plate'; openDeep(c); }
+      else if (c.kind === 'module') roles[c.id] = 'closed';
+      else { roles[c.id] = 'district'; openDeep(c); }
+    }
+  };
+  if (f === root) {
+    openDeep(root);
+    const lit = litSet();
+    if (lit.size) for (const id in T) if (T[id].kind === 'module' && !lit.has(id)) roles[id] = 'dim';
+    return roles;
+  }
+  // the focus is open; its ancestors are faint shells; their other children stay as context
+  roles[f.id] = 'glass';
+  showInside(f);
+  for (const a of ancestors(f)) {
+    if (a.kind !== 'root') roles[a.id] = a.kind === 'group' ? 'context' : 'shell';
+    const faint = f.kind === 'module' || f.kind === 'area';
+    for (const s of a.children) if (roles[s.id] === 'hidden') roles[s.id] = faint && a !== root ? 'far' : 'context';
+  }
+  return roles;
+}
+let roles = {};
+function applyState(instant) {
+  save();
+  roles = computeRoles();
+  const steps = stepModules();
+  const lit = litSet();
+  for (const n of Object.values(T)) {
+    if (n.kind === 'root') continue;
+    const r = roles[n.id];
+    Object.assign(n.tgt, ROLE[r]);
+    if (r !== 'hidden') n.mesh.visible = true;
+    if (instant) Object.assign(n.cur, n.tgt);
+    n.hl = state.flow ? steps.includes(n.id) : false;
+    n.cur_step = state.flow && stepModules()[state.step] === n.id;
+    n.lit = lit.has(n.id);
+    n.mesh.material.emissive.setHex(baseEmissive(n));
+    // labels
+    if (n.label) {
+      const el = n.label.element;
+      const f = T[state.focus] || root;
+      const childOfFocus = n.parent === f || (n.parent?.kind === 'group' && n.parent.parent === f);
+      let show = false, cls = 'lab';
+      if (lit.size && n.kind === 'module') { show = lit.has(n.id); cls += ' hl small'; }
+      else if (lit.size && r === 'district' && n.parent !== root) { show = false; }
+      else if (state.flow) { show = r === 'closed' || r === 'shell'; if (r === 'closed') cls += n.cur_step ? ' step big' : ' step'; if (r === 'shell') cls += ' ctx big'; }
+      else if (r === 'district') { show = true; cls += n.parent === root ? ' big' : ''; }
+      else if (r === 'closed' && f === root && n.kind === 'module') { show = state.lens === 'cap' && countLoc(n) >= 450; cls += ' small'; }
+      else if (r === 'closed' && childOfFocus) { show = true; if (n.kind === 'file' || n.kind === 'module') cls += ' small'; if (n.kind === 'cap' || n.kind === 'repo') cls += ' big'; }
+      else if (r === 'glass') { show = false; }
+      else if (r === 'context' && n.parent === (f.parent || root) && n.kind !== 'group') { show = true; cls += ' ctx'; }
+      el.className = cls;
+      n.label.visible = show;
+      if (show) {
+        let name = n.kind === 'module' && state.flow ? modLabel(n.id) : n.name;
+        if (state.flow && r === 'closed') { const idx = steps.map((s, i) => s === n.id ? i + 1 : 0).filter(Boolean); name = `${idx.join(' · ')}  ${modLabel(n.id)}`; }
+        el.querySelector('.n').textContent = name;
+        let sub = '';
+        
+        el.querySelector('.s').textContent = sub;
+      }
+    }
+  }
+  renderUI();
+  drawArcs();
+  if (!instant) frameFocus();
+}
+const countModules = (n) => n.kind === 'module' ? 1 : n.children.reduce((s, c) => s + countModules(c), 0);
+const countLoc = (n) => n.kind === 'file' ? n.file.loc : n.children.reduce((s, c) => s + countLoc(c), 0);
+
+// ---------------- camera ----------------
+let camGoal = null, tgtGoal = null;
+function frameNode(n, tight) {
+  const size = n === root ? Math.hypot(n.w, n.d) * 0.8 : Math.max(n.w, n.d, n.h * 1.5);
+  const c = new THREE.Vector3(n.x || 0, (n.y || 0) + (n === root ? 0 : n.h * 0.35), n.z || 0);
+  const dir = new THREE.Vector3(0.55, 0.85, 1).normalize();
+  const dist = size * (tight ? 1.6 : n === root ? 1.2 : 1.55) + 3;
+  tgtGoal = c; camGoal = c.clone().add(dir.multiplyScalar(dist));
+}
+function frameFocus() {
+  const lit = litSet();
+  if (state.flow || lit.size) {
+    const ns = (state.flow ? stepModules() : [...lit]).map((id) => T[id]).filter(Boolean);
+    const box = new THREE.Box3();
+    for (const n of ns) box.expandByPoint(new THREE.Vector3(n.x - n.w / 2, n.y, n.z - n.d / 2)).expandByPoint(new THREE.Vector3(n.x + n.w / 2, n.y + n.h, n.z + n.d / 2));
+    const c = box.getCenter(new THREE.Vector3()), sz = box.getSize(new THREE.Vector3());
+    const dir = new THREE.Vector3(0.55, 0.85, 1).normalize();
+    tgtGoal = c; camGoal = c.clone().add(dir.multiplyScalar(Math.max(sz.x, sz.z) * 1.15 + 6));
+    return;
+  }
+  frameNode(T[state.focus] || root);
+}
+controls.addEventListener('start', () => { camGoal = null; tgtGoal = null; });
+
+// ---------------- arcs (dependencies) ----------------
+const arcAnim = [];
+function visibleProxy(id) { // nearest visible tree node for a module id
+  let n = T[id];
+  while (n && n.kind !== 'root') { const r = roles[n.id]; if (r && r !== 'hidden' && n.kind !== 'group') return n; n = n.parent; }
+  return null;
+}
+function modulesUnder(n) { if (n.kind === 'module') return [n.id]; return n.children.flatMap(modulesUnder); }
+function topOf(n) { return new THREE.Vector3(n.x, n.y + n.h * (n.cur?.sy ?? 1) + 0.05, n.z); }
+function clearArcs() {
+  for (const c of [...arcs.children]) { arcs.remove(c); c.geometry?.dispose(); if (c.isCSS2DObject) c.element.remove(); }
+  arcAnim.length = 0;
+}
+function viewScale() { const f = state.flow ? root : (T[state.focus] || root); return Math.min(1.2, Math.max(0.22, Math.max(f.w || 40, f.d || 40) / 14)); }
+function arcBetween(a, b, color, w, label) {
+  const sc = viewScale();
+  const mid = a.clone().lerp(b, 0.5); const dist = a.distanceTo(b);
+  mid.y = Math.max(a.y, b.y) + (0.6 + dist * 0.28) * Math.max(sc, 0.5);
+  const curve = new THREE.QuadraticBezierCurve3(a, mid, b);
+  const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 48, (0.02 + Math.log2(1 + w) * 0.02) * sc, 6, false), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.75 }));
+  arcs.add(tube);
+  const pulse = new THREE.Mesh(new THREE.SphereGeometry((0.07 + Math.log2(1 + w) * 0.025) * sc, 12, 10), new THREE.MeshBasicMaterial({ color }));
+  arcs.add(pulse);
+  arcAnim.push({ curve, pulse, off: Math.random() });
+  if (label) {
+    const el = document.createElement('div'); el.className = 'lab arc'; el.innerHTML = `<span class="n">${esc(label)}</span>`;
+    const o = new THREE.CSS2DObject(el); o.position.copy(b).add(new THREE.Vector3(0, 0.35, 0)); arcs.add(o);
+  }
+}
+let hovered = null;
+function drawArcs() {
+  clearArcs();
+  if (state.flow) return drawFlowPath();
+  const src = hovered && hovered.kind === 'module' ? hovered : T[state.sel]?.kind === 'module' ? T[state.sel] : T[state.focus]?.kind === 'module' ? T[state.focus] : null;
+  if (!src) return;
+  const mine = new Set(modulesUnder(src));
+  const outs = new Map(), ins = new Map();
+  for (const e of D.edges) {
+    const o = mine.has(e.from) && !mine.has(e.to), i = mine.has(e.to) && !mine.has(e.from);
+    if (!o && !i) continue;
+    const p = visibleProxy(o ? e.to : e.from);
+    if (!p || p === src) continue;
+    const m = o ? outs : ins;
+    const cur = m.get(p) || { w: 0, names: new Set() };
+    cur.w += e.w; cur.names.add(o ? e.to : e.from); m.set(p, cur);
+  }
+  const a = topOf(src);
+  const lab = (p, v) => p.kind === 'module' ? null : `${p.name}${v.names.size > 1 ? ` · ${v.names.size}` : ''}`;
+  for (const [p, v] of outs) arcBetween(a, topOf(p), 0x5b50e8, v.w, lab(p, v));
+  for (const [p, v] of ins) arcBetween(topOf(p), a, 0x14a08e, v.w, lab(p, v));
+}
+function drawFlowPath() {
+  const steps = stepModules().map((id) => T[id]).filter(Boolean);
+  for (let i = 1; i < steps.length; i++) {
+    if (steps[i] === steps[i - 1]) continue;
+    arcBetween(topOf(steps[i - 1]), topOf(steps[i]), 0xe5487f, 6, null);
+  }
+}
+
+// ---------------- picking / interaction ----------------
+const ray = new THREE.Raycaster();
+const ptr = new THREE.Vector2();
+const PICKABLE = new Set(['closed', 'context', 'ghost', 'shell', 'far', 'district', 'dim']);
+function pick(ev) {
+  ptr.set((ev.clientX / innerWidth) * 2 - 1, -(ev.clientY / innerHeight) * 2 + 1);
+  ray.setFromCamera(ptr, camera);
+  const cands = Object.values(T).filter((n) => n.mesh && PICKABLE.has(roles[n.id]) && n.kind !== 'group').map((n) => n.mesh);
+  const hits = ray.intersectObjects(cands, false);
+  // prefer the deepest (smallest) hit so a closed module wins over a faint shell around it
+  hits.sort((a, b) => depth(b.object.userData.node) - depth(a.object.userData.node) || a.distance - b.distance);
+  return hits[0]?.object.userData.node || null;
+}
+const depth = (n) => { let d = 0; for (let p = n.parent; p; p = p.parent) d++; return roles[n.id] === 'closed' ? d + 10 : d; };
+const tip = document.getElementById('tip');
+renderer.domElement.addEventListener('pointermove', (ev) => {
+  const n = pick(ev);
+  if (n !== hovered) {
+    if (hovered?.mesh) hovered.mesh.material.emissive.setHex(baseEmissive(hovered));
+    hovered = n;
+    if (n) n.mesh.material.emissive.setHex(dark ? 0x2a2a3a : 0x1d1d2a);
+    renderer.domElement.style.cursor = n ? 'pointer' : 'grab';
+    drawArcs();
+  }
+  if (n) {
+    const d = describe(n);
+    tip.innerHTML = `<b>${esc(n.kind === 'module' ? modLabel(n.id) : n.name)}</b>${d ? `<span>${esc(d)}</span>` : ''}<em>${roles[n.id] === 'district' ? t('clickFocus') : ENTER.has(n.kind) ? t('clickOpen') : n.kind === 'file' ? `${n.file.loc} ${t('lines')} · ${n.file.hash}` : ''}</em>`;
+    tip.hidden = false;
+    tip.style.left = Math.min(ev.clientX + 14, innerWidth - 300) + 'px'; tip.style.top = (ev.clientY + 14) + 'px';
+  } else tip.hidden = true;
+});
+renderer.domElement.addEventListener('pointerleave', () => { tip.hidden = true; });
+let down = null;
+renderer.domElement.addEventListener('pointerdown', (ev) => { down = { x: ev.clientX, y: ev.clientY, t: Date.now() }; });
+renderer.domElement.addEventListener('pointerup', (ev) => {
+  if (!down || Math.hypot(ev.clientX - down.x, ev.clientY - down.y) > 5) return;
+  const n = pick(ev);
+  if (!n) return;
+  if (state.flow) {
+    const i = stepModules().indexOf(n.id);
+    if (i >= 0) { state.step = i; applyState(); return; }
+    state.flow = ''; // clicking outside the flow leaves it
+  }
+  open(n);
+});
+renderer.domElement.addEventListener('dblclick', (ev) => { if (!pick(ev)) goUp(); });
+function open(n) {
+  state.hl = null;
+  if (ENTER.has(n.kind)) { state.focus = n.id; state.sel = null; }
+  else { state.focus = (n.parent && ENTER.has(n.parent.kind) ? n.parent : n.parent?.parent || root).id; state.sel = n.id; }
+  hovered = null; tip.hidden = true;
+  applyState();
+}
+function goUp() {
+  if (state.flow) { state.flow = ''; applyState(); return; }
+  if (state.hl?.length) { state.hl = null; applyState(); return; }
+  if (state.sel) { state.sel = null; applyState(); return; }
+  let p = T[state.focus]?.parent;
+  while (p && p.kind === 'group') p = p.parent;
+  if (T[state.focus]?.kind === 'module') p = root;
+  state.focus = p ? p.id : 'root';
+  applyState();
+}
+function goTo(id) {
+  state.flow = '';
+  if (!T[id]) { // a capability in the repos lens: light its modules instead
+    if (id.startsWith('cap:')) { state.hl = [id]; state.focus = 'root'; applyState(); }
+    return;
+  }
+  state.hl = null; state.focus = id; state.sel = null; applyState();
+}
+addEventListener('keydown', (e) => {
+  if (e.target.closest?.('textarea, input, select')) return;
+  if (e.key === 'Escape') goUp();
+  if (state.flow && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) stepBy(e.key === 'ArrowRight' ? 1 : -1);
+});
+function stepBy(d) { const f = FLOW[state.flow]; state.step = Math.max(0, Math.min(f.steps.length - 1, state.step + d)); applyState(); }
+
+// ---------------- UI: bar + card ----------------
+const card = document.getElementById('card');
+const guard = (g) => g === 'test' ? `<span class="chip ok">${t('test')}</span>` : g === 'type' ? `<span class="chip ok">${t('type')}</span>` : g === 'partial' ? `<span class="chip warn">${t('partial')}</span>` : `<span class="chip bad">${t('paper')}</span>`;
+const conf = (c) => c === 'verified' ? `<span class="chip ok">${t('verified')}</span>` : c === 'inferred' ? `<span class="chip warn">${t('inferred')}</span>` : c === 'generated' ? `<span class="chip">${t('generated')}</span>` : '';
+const sw = (r) => `<span class="dot" style="background:#${REPO_COLOR[r].toString(16)}"></span>`;
+function describe(n) {
+  const d = n.kind === 'cap' ? n.cap : n.kind === 'file' ? n.file.desc : n.ref?.desc; if (!d) return '';
+  return (state.aud === 'biz' ? L(d, 'biz') || L(d, 'tech') : L(d, 'tech') || L(d, 'biz')) || '';
+}
+function ledes(d) {
+  if (!d) return `<p class="lede none">${t('noDesc')}</p>`;
+  const a = state.aud === 'biz' ? L(d, 'biz') : L(d, 'tech'), b = state.aud === 'biz' ? L(d, 'tech') : L(d, 'biz');
+  return `${a ? `<p class="lede">${esc(a)}</p>` : ''}${b ? `<p class="lede second">${esc(b)}</p>` : ''}`;
+}
+function nbList(map) {
+  return [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([id, w]) => `<button class="nb" data-go="${id}">${sw(repoOf(id))}${esc(modLabel(id))}<small>${w}</small></button>`).join('');
+}
+function renderUI() {
+  document.documentElement.lang = state.lang === 'en' ? 'en' : 'pt-BR';
+  for (const el of document.querySelectorAll('[data-t]')) el.textContent = t(el.dataset.t);
+  for (const el of document.querySelectorAll('[data-t-html]')) el.innerHTML = t(el.dataset.tHtml);
+  for (const seg of document.querySelectorAll('.seg')) for (const b of seg.children) b.classList.toggle('on', b.dataset.v === state[seg.id]);
+  const flowSel = document.getElementById('flowSel');
+  flowSel.innerHTML = '<option value="">—</option>' + D.flows.map((f) => `<option value="${f.id}">${esc(L(f, 'name'))}</option>`).join('');
+  flowSel.value = state.flow;
+  const f = T[state.focus] || root;
+  const path = [f, ...ancestors(f)].filter((n) => n.kind !== 'group').reverse();
+  document.getElementById('crumbs').innerHTML = path.map((n, i) => `${i ? '<span class="sep">›</span>' : ''}<button data-focus="${n.id}" class="${i === path.length - 1 ? 'cur' : ''}">${esc(n.name)}</button>`).join('');
+  document.getElementById('up').hidden = f === root && !state.flow && !state.sel;
+  const stale = modules.filter((m) => m.stale);
+  const sp = document.getElementById('stalePill'); sp.hidden = !stale.length; sp.textContent = `${stale.length} ${t('stale')}`;
+  renderCard();
+  if (typeof renderChat === 'function') renderChat();
+  renderCaption();
+  ensureDescribed(T[state.sel]?.kind === 'file' ? T[state.sel].parent : T[state.focus]);
+}
+// What you are looking at, said in the scene itself (the Details panel has the rest).
+function renderCaption() {
+  const el = document.getElementById('caption');
+  if (!el) return;
+  let html = '';
+  if (state.flow && FLOW[state.flow]) {
+    const f = FLOW[state.flow], x = f.steps[state.step];
+    if (x) html = `<div class="k">${esc(L(f, 'name'))} · ${state.step + 1}/${f.steps.length}</div><div class="nav"><button data-stepby="-1">←</button><button data-stepby="1">→</button></div>
+      <div class="d" style="margin-top:4px">${esc(L(x, 'text'))}</div><div class="t">${esc(modLabel(x.unit))}${x.anchor ? ` · <code>${esc(x.anchor)}</code>` : ''}</div>`;
+  } else {
+    const n = T[state.sel] || T[state.focus];
+    if (n && n !== root && n.kind !== 'group') {
+      const d = n.kind === 'file' ? n.file.desc : n.kind === 'cap' ? n.cap : n.ref?.desc;
+      const owner = n.kind === 'file' ? n.parent : n;
+      const loc = n.kind === 'file' ? n.file.loc : countLoc(n);
+      const kind = n.kind === 'cap' ? 'capability' : t(n.kind === 'file' ? 'file' : n.kind === 'module' ? 'module' : n.kind === 'area' ? 'area' : 'repo');
+      const title = n.kind === 'module' ? modLabel(n.id) : n.kind === 'file' ? `${n.name}` : n.name;
+      const a = d && (L(d, 'biz') || L(d, 'tech')), b = d && L(d, 'biz') && L(d, 'tech');
+      html = `<div class="k">${n.repo ? sw(n.repo) + ' ' + repoName[n.repo] + ' · ' : ''}${kind} · ${fmt(loc)} ${t('lines')} ${d ? conf(d.confidence) : ''}</div><b>${esc(title)}</b>`
+        + (a ? `<div class="d">${esc(a)}</div>${b ? `<div class="t">${esc(L(d, 'tech'))}</div>` : ''}`
+          : describing.has(owner.id) ? `<div class="t wait">${t('describing')}</div>` : `<div class="t">${t('noDesc')}</div>`);
+    }
+  }
+  el.innerHTML = html;
+  el.hidden = !html || state.panel === 'details';
+}
+function renderCard() {
+  card.classList.remove('off');
+  if (state.flow) return cardFlow(FLOW[state.flow]);
+  const n = T[state.sel] || T[state.focus] || root;
+  if (n === root) return cardRoot();
+  if (n.kind === 'cap') return cardCap(n);
+  if (n.kind === 'file') return cardFile(n);
+  return cardNode(n);
+}
+function cardRoot() {
+  card.innerHTML = `<h2>${esc(D.config.name)}</h2><div class="kind">${modules.length} ${t('modules')} · ${SOURCES.length} repos · ${D.edges.length} ${t('deps')}</div>
+    ${ledes(L(D.system, 'biz') || L(D.system, 'tech') ? D.system : null)}
+    <p class="lede second">${t('rootHow')} ${state.lens === 'cap' ? t('rootCap') : t('rootRepo')} ${t('rootHover')}</p>
+    <h3>${t('flows')}</h3>${D.flows.map((x) => `<button class="it" data-flow="${x.id}"><b>▶ ${esc(L(x, 'name'))} ${conf(x.confidence)}</b><span>${esc(L(x, 'biz'))}</span></button>`).join('')}
+    <h3>${t('rules')}</h3>${D.invariants.map((i) => `<div class="it"><b>${esc(L(i, 'name'))} ${guard(i.guard)}</b></div>`).join('')}`;
+}
+function cardCap(n) {
+  const ms = modulesUnder(n);
+  const flows = D.flows.filter((f) => f.steps.some((s) => ms.includes(s.unit)));
+  card.innerHTML = `<h2>${esc(n.name)}</h2><div class="kind">capability · ${ms.length} ${t('modules')} · ${fmt(countLoc(n))} ${t('lines')}</div>${ledes(n.cap)}
+    <h3>${t('where')}</h3><div class="row">${n.children.map((g) => `<span class="nb">${sw(g.repo)}${esc(g.name)}<small>${g.children.length}</small></span>`).join('')}</div>
+    ${flows.length ? `<h3>${t('flowsHere')}</h3>${flows.map((x) => `<button class="it" data-flow="${x.id}"><b>▶ ${esc(L(x, 'name'))}</b></button>`).join('')}` : ''}
+    <p class="lede second" style="margin-top:14px">${t('hoverHint')}</p>`;
+}
+function cardFile(n) {
+  card.innerHTML = `<button class="x" data-close>×</button><h2>${esc(n.name)}</h2><div class="kind">${sw(n.repo)} ${t('file')} · ${n.file.loc} ${t('lines')} · <code>${n.file.hash}</code></div><p class="ev" style="margin-top:10px">${esc(n.file.path)}</p>${ledes(n.file.desc)}`;
+}
+function cardNode(n) {
+  const m = n.ref; const id = n.id;
+  const mine = new Set(modulesUnder(n));
+  const outs = new Map(), ins = new Map();
+  for (const e of D.edges) {
+    if (mine.has(e.from) && !mine.has(e.to)) outs.set(e.to, (outs.get(e.to) || 0) + e.w);
+    if (mine.has(e.to) && !mine.has(e.from)) ins.set(e.from, (ins.get(e.from) || 0) + e.w);
+  }
+  const d = m?.desc;
+  const flows = D.flows.filter((f) => f.steps.some((s) => mine.has(s.unit)));
+  const invs = D.invariants.filter((i) => i.scope.some((s) => mine.has(s) || s === id || isUnder(id, s) || isUnder(s, id)));
+  const cap = m?.cap && state.lens === 'repo' ? CAP[m.cap] : null;
+  const lg = m?.legacy ? D.legacy[m.legacy] : null;
+  card.innerHTML = `<h2>${esc(n.kind === 'module' ? modLabel(id) : n.name)}</h2>
+    <div class="kind">${sw(n.repo)} ${repoName[n.repo]} · ${t(n.kind === 'module' ? 'module' : n.kind === 'area' ? 'area' : 'repo')} · ${fmt(countLoc(n))} ${t('lines')} ${d ? conf(d.confidence) : ''} ${cap ? `<span class="chip">${esc(L(cap, 'name'))}</span>` : ''}
+    ${lg ? `<span class="chip" style="color:#${LEGACY_COLOR[m.legacy].toString(16)}">● ${esc(L(lg, 'label'))}</span>` : ''}</div>
+    ${ledes(d)}
+    ${m?.stale ? `<div class="staleBox">${t('changed')} (<code>${d.describedHash}</code> → <code>${m.hash}</code>). ${t('changedTail')}</div>` : ''}
+    ${lg ? `<p class="lede second">${esc(L(lg, 'note'))}</p>` : ''}
+    ${d?.anchors?.length ? `<h3>${t('evidence')}</h3>${d.anchors.map((a) => `<div class="ev">${esc(a.path)}:${a.line}</div><div class="evn">${esc(L(a, 'note'))}</div>`).join('')}` : ''}
+    ${flows.length ? `<h3>${t('flows')}</h3>${flows.map((x) => `<button class="it" data-flow="${x.id}"><b>▶ ${esc(L(x, 'name'))}</b></button>`).join('')}` : ''}
+    ${invs.length ? `<h3>${t('rulesShort')}</h3>${invs.map((i) => `<div class="it"><b>${esc(L(i, 'name'))} ${guard(i.guard)}</b></div>`).join('')}` : ''}
+    ${outs.size ? `<h3><span style="color:#5b50e8">●</span> ${t('uses')}</h3><div class="row">${nbList(outs)}</div>` : ''}
+    ${ins.size ? `<h3><span style="color:#14a08e">●</span> ${t('usedBy')}</h3><div class="row">${nbList(ins)}</div>` : ''}`;
+}
+function cardFlow(f) {
+  card.innerHTML = `<button class="x" data-flow="">×</button><h2>${esc(L(f, 'name'))}</h2><div class="kind">${t('flowWord')} ${conf(f.confidence)} · ${f.steps.length} ${t('steps')}</div><p class="lede">${esc(L(f, 'biz'))}</p>
+    <ol class="steps">${f.steps.map((x, i) => `<li data-step="${i}" class="${i === state.step ? 'on' : ''}"><span class="n">${i + 1}</span><div><div class="t">${esc(L(x, 'text'))}</div><div class="u">${esc(modLabel(x.unit))}</div>${i === state.step && x.anchor ? `<div class="ev">${esc(x.anchor)}</div>` : ''}${i === state.step && !x.anchor ? `<div class="evn">${t('noAnchor')}</div>` : ''}</div></li>`).join('')}</ol>
+    <div class="flowNav"><button data-stepby="-1">${t('prev')}</button><button data-stepby="1">${t('next')}</button></div>`;
+}
+document.body.addEventListener('click', (ev) => {
+  const t = ev.target.closest('[data-v],[data-focus],[data-flow],[data-go],[data-step],[data-stepby],[data-close],#up,#stalePill');
+  if (!t) return;
+  const seg = t.closest('.seg');
+  if (seg && t.dataset.v) {
+    if (seg.id === 'lang' && state.lang !== t.dataset.v) { state.lang = t.dataset.v; buildScene(); return; }
+    if (seg.id === 'lens' && state.lens !== t.dataset.v) { state.lens = t.dataset.v; state.focus = 'root'; state.sel = null; state[seg.id] = t.dataset.v; buildScene(); frameFocus(); return; }
+    state[seg.id] = t.dataset.v; applyState(true); return;
+  }
+  if (t.id === 'up') return goUp();
+  if (t.id === 'stalePill') { const m = modules.find((x) => x.stale); return goTo(m.id); }
+  if (t.dataset.focus) { state.hl = null; state.focus = t.dataset.focus; state.sel = null; state.flow = ''; return applyState(); }
+  if (t.dataset.flow !== undefined) { state.flow = t.dataset.flow; state.step = 0; state.sel = null; if (!state.flow) state.focus = 'root'; return applyState(); }
+  if (t.dataset.go) return goTo(t.dataset.go);
+  if (t.dataset.step) { state.step = +t.dataset.step; return applyState(); }
+  if (t.dataset.stepby) return stepBy(+t.dataset.stepby);
+  if (t.dataset.close !== undefined) { state.sel = null; return applyState(); }
+});
+const flowSel = document.getElementById('flowSel');
+
+flowSel.addEventListener('change', () => { state.flow = flowSel.value; state.step = 0; state.sel = null; if (!state.flow) state.focus = 'root'; applyState(); });
+
+// ---------------- loop ----------------
+const clock = new THREE.Clock();
+function tick() {
+  const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
+  const k = 1 - Math.pow(0.0015, dt); // smooth approach
+  for (const n of Object.values(T)) {
+    if (!n.mesh) continue;
+    const c = n.cur, g = n.tgt;
+    c.fill += (g.fill - c.fill) * k; c.edge += (g.edge - c.edge) * k; c.sy += (g.sy - c.sy) * k;
+    if (g.fill === 0 && c.fill < 0.01 && c.edge < 0.01) { n.mesh.visible = false; if (n.staleMark) n.staleMark.visible = false; if (n.legacyMark) n.legacyMark.visible = false; if (n.label) n.label.visible = n.label.visible && false; continue; }
+    n.mesh.visible = true;
+    const lift = (n === hovered ? 0.12 : 0) + (n.cur_step ? 0.6 + Math.sin(t * 2.5) * 0.12 : 0);
+    n.mesh.position.y = n.y + lift;
+    n.mesh.scale.y = Math.max(0.001, n.h * c.sy);
+    n.mesh.material.opacity = c.fill;
+    n.mesh.material.depthWrite = c.fill > 0.9;
+    n.mesh.castShadow = c.fill > 0.5 && n.kind !== 'group';
+    n.edges.material.opacity = c.edge;
+    const top = n.y + lift + n.h * c.sy;
+    if (n.legacyMark) { n.legacyMark.visible = c.fill > 0.5; n.legacyMark.material.opacity = c.fill; n.legacyMark.position.set(n.x, top, n.z); n.legacyMark.scale.set(n.w * 0.98, 0.06, n.d * 0.98); }
+    if (n.staleMark) { n.staleMark.visible = c.fill > 0.5; n.staleMark.material.opacity = c.fill; n.staleMark.scale.setScalar(Math.min(1, Math.max(n.w, 0.6))); n.staleMark.position.set(n.x + n.w / 2 - 0.15, top + 0.3 + Math.sin(t * 3) * 0.07, n.z - n.d / 2 + 0.15); }
+    if (n.label) n.label.position.set(n.x, top + 0.2, roles[n.id] === 'district' ? n.z - n.d / 2 : n.z);
+  }
+  for (const a of arcAnim) a.pulse.position.copy(a.curve.getPoint((t * 0.45 + a.off) % 1));
+  if (camGoal) {
+    camera.position.lerp(camGoal, k * 0.9); controls.target.lerp(tgtGoal, k * 0.9);
+    if (camera.position.distanceTo(camGoal) < 0.05) { camGoal = null; }
+  }
+  controls.update();
+  renderer.render(scene, camera);
+  labelRenderer.render(scene, camera);
+  requestAnimationFrame(tick);
+}
+function fitView() {
+  camera.aspect = innerWidth / innerHeight;
+  const wide = innerWidth > 900;
+  const off = wide && state.panel ? -225 : 0;
+  if (off) camera.setViewOffset(innerWidth, innerHeight, off, 0, innerWidth, innerHeight); else camera.clearViewOffset();
+  camera.updateProjectionMatrix();
+}
+fitView();
+addEventListener('resize', () => {
+  fitView();
+  renderer.setSize(innerWidth, innerHeight); labelRenderer.setSize(innerWidth, innerHeight);
+});
+
+// ---------------- chat ----------------
+// Talks to `atlas serve`, which runs the user's own agent read-only in the workspace.
+const served = location.protocol.startsWith('http');
+const chatEl = document.getElementById('chat'), msgsEl = document.getElementById('msgs'), qEl = document.getElementById('q'), sendEl = document.getElementById('send');
+let chatSession = null, busy = false;
+try { chatSession = sessionStorage.getItem('atlasChat'); } catch {}
+if (state.panel === undefined) state.panel = null;
+if (state.flow && !FLOW[state.flow]) state.flow = '';
+
+function citeLabel(id) {
+  if (id.startsWith('cap:')) { const c = CAP[id.slice(4)]; return c ? L(c, 'name') : null; }
+  return N[id] ? modLabel(id) : null;
+}
+function md(src) {
+  const inline = (s) => esc(s)
+    .replace(/\[\[([^\]]+)\]\]/g, (m, id) => { const l = citeLabel(id); return l ? `<button class="cite" data-go="${esc(id)}">${id.startsWith('cap:') ? '◇' : sw(repoOf(id))}${esc(l)}</button>` : `<code>${esc(id)}</code>`; })
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+  const out = []; let list = null;
+  for (const line of src.split('\n')) {
+    const li = line.match(/^\s*(?:[-*]|\d+\.)\s+(.*)/);
+    if (li) { if (!list) { list = /^\s*\d/.test(line) ? 'ol' : 'ul'; out.push(`<${list}>`); } out.push(`<li>${inline(li[1])}</li>`); continue; }
+    if (list) { out.push(`</${list}>`); list = null; }
+    if (line.trim()) out.push(`<p>${inline(line)}</p>`);
+  }
+  if (list) out.push(`</${list}>`);
+  return out.join('');
+}
+// A drafted flow arrives as a fenced atlas-flow block; while streaming, hide it until it closes.
+const drafts = {};
+function splitFlow(text) {
+  const m = text.match(/```atlas-flow\s*([\s\S]*?)```/);
+  if (m) { try { return { text: text.replace(m[0], ''), raw: JSON.parse(m[1]) }; } catch { return { text: text.replace(m[0], ''), raw: null }; } }
+  const open = text.indexOf('```atlas-flow');
+  return { text: open >= 0 ? text.slice(0, open) : text, raw: null };
+}
+function toFlow(raw) {
+  const id = (raw.id || raw.name_en || 'flow').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  return { id, name: raw.name_pt || raw.name_en, name_en: raw.name_en || raw.name_pt, biz: raw.biz_pt || raw.biz_en, biz_en: raw.biz_en || raw.biz_pt,
+    confidence: raw.confidence === 'verified' ? 'verified' : 'inferred',
+    steps: (raw.steps || []).filter((x) => N[x.unit]).map((x) => ({ unit: x.unit, text: x.text_pt || x.text_en, text_en: x.text_en || x.text_pt, anchor: x.anchor || null })) };
+}
+function draftCard(f) {
+  return `<div class="draftCard" data-draft="${esc(f.id)}"><div class="k">${t('draft')} ${conf(f.confidence)}</div><b>${esc(L(f, 'name'))}</b><p>${esc(L(f, 'biz'))}</p>
+    <ol>${f.steps.map((x) => `<li>${esc(L(x, 'text'))} <span class="muted">· ${esc(modLabel(x.unit))}</span></li>`).join('')}</ol>
+    <div class="acts"><button data-preview="${esc(f.id)}">${t('preview')}</button><button class="pri" data-saveflow="${esc(f.id)}">${t('saveFlow')}</button></div></div>`;
+}
+// The agent ends with "SHOW: id, id" when its answer is about specific modules.
+function splitShow(text) {
+  const m = text.match(/\n?\s*SHOW:\s*(.+)\s*$/);
+  if (!m) return { body: text, ids: [] };
+  return { body: text.slice(0, m.index), ids: m[1].split(/[,\s]+/).map((x) => x.replace(/^\[\[|\]\]$/g, '')).filter((id) => N[id] || CAP[id.slice(4)]) };
+}
+function aboutNow() {
+  const n = T[state.sel] || T[state.focus];
+  if (!n || n === root) return null;
+  return { id: n.id, label: n.kind === 'module' ? modLabel(n.id) : n.kind === 'file' ? n.file.path : n.name, kind: n.kind };
+}
+function renderChat() {
+  renderRail();
+  qEl.placeholder = t('placeholder');
+  const a = aboutNow();
+  document.getElementById('about').innerHTML = a ? `${t('about')}: <b>${esc(a.label)}</b>` : '';
+  if (!msgsEl.children.length && !busy) {
+    msgsEl.innerHTML = served
+      ? `<div class="sugg">${[...t('sugg'), ...(D.config.suggestions?.[state.lang] || [])].map((q) => `<button data-ask="${esc(q)}">${esc(q)}</button>`).join('')}</div>`
+      : `<p class="empty">${t('needServe')}</p>`;
+  }
+  sendEl.disabled = busy || !served;
+}
+async function ask(q) {
+  if (busy || !q.trim() || !served) return;
+  if (msgsEl.querySelector('.sugg, .empty')) msgsEl.innerHTML = '';
+  busy = true; renderChat();
+  msgsEl.insertAdjacentHTML('beforeend', `<div class="msg user">${esc(q)}</div><div class="msg bot"><div class="status">${t('thinking')}</div><div class="body"></div></div>`);
+  const bot = msgsEl.lastElementChild, status = bot.querySelector('.status'), body = bot.querySelector('.body');
+  msgsEl.scrollTop = msgsEl.scrollHeight;
+  const a = aboutNow();
+  let text = '';
+  try {
+    const res = await fetch('/chat', { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ message: q, session: chatSession, lang: state.lang, about: a ? `${a.kind} ${a.id} (${a.label})` : null }) });
+    const reader = res.body.getReader(), dec = new TextDecoder();
+    let buf = '';
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let nl;
+      while ((nl = buf.indexOf('\n')) >= 0) {
+        const ev = JSON.parse(buf.slice(0, nl)); buf = buf.slice(nl + 1);
+        if (ev.type === 'status') status.textContent = ev.text;
+        if (ev.type === 'delta') { text += ev.text; body.innerHTML = md(splitShow(splitFlow(text).text).body); }
+        if (ev.type === 'done') {
+          if (ev.session) { chatSession = ev.session; try { sessionStorage.setItem('atlasChat', chatSession); } catch {} }
+          if (ev.text) text = ev.text;
+          if (ev.error) text = text || `${t('chatErr')} (${ev.error})`;
+        }
+      }
+      msgsEl.scrollTop = msgsEl.scrollHeight;
+    }
+  } catch (e) { text = text || `${t('chatErr')}: ${e.message}`; }
+  status.remove();
+  const fl = splitFlow(text);
+  const { body: answer, ids } = splitShow(fl.text);
+  body.innerHTML = md(answer);
+  if (fl.raw) {
+    const f = toFlow(fl.raw);
+    if (f.steps.length) { drafts[f.id] = f; FLOW[f.id] = f; bot.insertAdjacentHTML('beforeend', draftCard(f)); }
+  }
+  if (ids.length) {
+    bot.insertAdjacentHTML('beforeend', `<div class="lit">● ${ids.length} ${t('lit')} <button data-relight="${esc(ids.join(','))}">↺</button> <button data-unlight>${t('clear')}</button></div>`);
+    light(ids);
+  }
+  busy = false; renderChat();
+  msgsEl.scrollTop = msgsEl.scrollHeight;
+}
+async function saveDraft(btn) {
+  const f = drafts[btn.dataset.saveflow];
+  btn.disabled = true; btn.textContent = t('saving');
+  try {
+    const r = await fetch('/flows', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(f) });
+    if (!r.ok) throw new Error(r.status);
+    if (!D.flows.some((x) => x.id === f.id)) D.flows.push({ ...f, local: true });
+    btn.textContent = t('saved');
+    renderUI();
+  } catch (e) { btn.disabled = false; btn.textContent = `${t('saveErr')} (${e.message})`; }
+}
+// Opening a module with no description asks the agent to read it and describe it and its files, once.
+const describing = new Set(), describeFailed = new Set();
+async function ensureDescribed(n) {
+  if (!served || !n || n.kind !== 'module' || describing.has(n.id) || describeFailed.has(n.id)) return;
+  const m = n.ref;
+  if (m.desc && m.files.every((f) => f.desc)) return;
+  describing.add(n.id); renderCaption();
+  try {
+    const r = await fetch('/describe', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: n.id }) });
+    if (!r.ok) throw new Error(r.status);
+    const got = await r.json();
+    if (got.module && !m.desc) m.desc = got.module;
+    for (const f of m.files) if (got.files?.[f.path]) f.desc = got.files[f.path];
+  } catch { (describeFailed.tried ??= new Set()).has(n.id) ? describeFailed.add(n.id) : describeFailed.tried.add(n.id); }
+  describing.delete(n.id);
+  renderUI();
+}
+function light(ids) { state.flow = ''; state.sel = null; state.focus = 'root'; state.hl = ids; applyState(); }
+document.getElementById('ask').addEventListener('submit', (e) => { e.preventDefault(); const q = qEl.value; qEl.value = ''; qEl.style.height = ''; ask(q); });
+qEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); document.getElementById('ask').requestSubmit(); } });
+qEl.addEventListener('input', () => { qEl.style.height = 'auto'; qEl.style.height = Math.min(qEl.scrollHeight, 120) + 'px'; });
+msgsEl.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-ask],[data-relight],[data-unlight],[data-preview],[data-saveflow]');
+  if (!b) return;
+  if (b.dataset.ask) ask(b.dataset.ask);
+  if (b.dataset.relight) light(b.dataset.relight.split(','));
+  if (b.dataset.unlight !== undefined) { state.hl = null; applyState(); }
+  if (b.dataset.preview) { state.hl = null; state.sel = null; state.focus = 'root'; state.flow = b.dataset.preview; state.step = 0; applyState(); }
+  if (b.dataset.saveflow) saveDraft(b);
+});
+// One panel at a time; clicking the active button closes it.
+function setPanel(p) { state.panel = state.panel === p ? null : p; renderRail(); fitView(); save(); if (state.panel === 'ask') qEl.focus(); }
+function renderRail() {
+  card.classList.toggle('collapsed', state.panel !== 'details');
+  chatEl.classList.toggle('collapsed', state.panel !== 'ask');
+  document.body.classList.toggle('paneled', !!state.panel);
+  renderCaption();
+  for (const b of document.querySelectorAll('#rail [data-panel]')) b.classList.toggle('on', b.dataset.panel === state.panel);
+}
+document.getElementById('rail').addEventListener('click', (e) => { const b = e.target.closest('[data-panel]'); if (b) setPanel(b.dataset.panel); });
+
+renderChat();
+fitView();
+buildScene();
+frameFocus();
+if (camGoal) { camera.position.copy(camGoal).add(new THREE.Vector3(10, 18, 14)); }
+tick();
+</script>
+</body>
+</html>
