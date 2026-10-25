@@ -11,21 +11,20 @@
     "skeleton": "node src/skeleton.ts",
     "build": "node src/build.ts",
     "serve": "node src/serve.ts",
+    "bundle": "node src/bundle.ts",
     "typecheck": "tsc --noEmit",
     "check:private": "scripts/check-private.sh",
     "test": "node --test test/*.test.ts",
     "test:update": "node --test --test-update-snapshots test/*.test.ts",
-    "check": "tsc --noEmit && prettier --check . && node --test test/*.test.ts && scripts/check-private.sh",
+    "check": "tsc --noEmit && prettier --check . && node src/bundle.ts --check && node --test test/*.test.ts && scripts/check-private.sh",
     "format": "prettier --write ."
-  },
-  "dependencies": {
-    "esbuild": "0.28.2",
-    "three": "0.186.1"
   },
   "devDependencies": {
     "@types/node": "24.19.2",
     "@types/three": "0.186.0",
+    "esbuild": "0.28.2",
     "prettier": "3.9.10",
+    "three": "0.186.1",
     "typescript": "7.0.2"
   }
 }

@@ -29,7 +29,10 @@ interface Target {
 const sources = new Map<string, Source>(
   config.sources.map((s) => {
     const cwd = path.join(project, s.dir);
-    const files = new Set(lines(git(cwd, 'ls-files')).filter((f) => CODE.test(f) && !SKIP.test(f)));
+    const listed = lines(git(cwd, 'ls-files --cached --others --exclude-standard'));
+    const files = new Set(
+      listed.filter((f) => CODE.test(f) && !SKIP.test(f) && fs.existsSync(path.join(cwd, f))),
+    );
     const rules = s.modules.map((r) => ({ ...r, re: new RegExp(r.match) }));
     return [s.id, { ...s, cwd, files, rules }];
   }),

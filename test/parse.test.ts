@@ -1,6 +1,7 @@
+import fs from 'node:fs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseChatRequest, parseConfig, parseDescription, parseFlow } from '../src/parse.ts';
+import { parseChatRequest, parseConfig, parseDescription, parseFlow, parseSemantic } from '../src/parse.ts';
 
 test('a chat request passes through; a bad language is refused by name', () => {
   const ok = { message: 'hi', session: null, lang: 'pt', about: 'module web/api/orders' };
@@ -34,4 +35,19 @@ test("the agent's description may omit the module; files default to none", () =>
   const got = parseDescription({ files: { 'a.ts': { biz_en: 'Adds.', tech_pt: 'Soma.' } } });
   assert.equal(got.files['a.ts'].biz_en, 'Adds.');
   assert.throws(() => parseDescription({ files: { 'a.ts': { biz_en: 3 } } }), /files\.a\.ts\.biz_en/);
+});
+
+test('the semantic.json example the skill teaches is valid', () => {
+  const doc = fs.readFileSync(new URL('../skills/atlas/semantic-format.md', import.meta.url), 'utf8');
+  const example = doc.match(/```json\n([\s\S]*?)```/)?.[1] ?? '';
+  const semantic = parseSemantic(JSON.parse(example));
+  assert.ok(semantic.caps?.[0].rules[0] instanceof RegExp);
+  const stamped = parseSemantic({
+    desc: { 'web/api/orders': { biz: 'Takes orders.', describedHash: 'abcd1234' } },
+  });
+  assert.equal(stamped.desc?.['web/api/orders'].describedHash, 'abcd1234');
+  assert.throws(
+    () => parseSemantic({ caps: [{ id: 'x', name: 'X', rules: ['('] }] }),
+    /caps\[0\]\.rules\[0\]/,
+  );
 });
