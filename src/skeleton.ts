@@ -4,7 +4,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
-import type { AtlasConfig, Edge, SkNode, SourceConfig } from './types.ts';
+import type { Edge, SkNode, SourceConfig } from './types.ts';
+import { parseConfig } from './parse.ts';
 import { atlasPaths, readJson, sha8 } from './project.ts';
 
 const CODE = /\.(ts|tsx|js|jsx|mjs)$/;
@@ -14,7 +15,7 @@ const IMPORT = /(?:from|import)\s*\(?\s*['"]([^'"]+)['"]/g;
 
 const project = path.resolve(process.argv[2] || '.');
 const paths = atlasPaths(project);
-const config = readJson(paths.config) as AtlasConfig;
+const config = parseConfig(readJson(paths.config));
 const git = (cwd: string, cmd: string) => execSync(`git ${cmd}`, { cwd }).toString();
 const lines = (text: string) => text.split('\n').filter(Boolean);
 
@@ -59,7 +60,8 @@ const moduleId = (t: Target) => {
 function exportTarget(entry: unknown): string | null {
   if (typeof entry === 'string') return entry;
   if (entry && typeof entry === 'object') {
-    const { import: imp, default: def } = entry as Record<string, unknown>;
+    const fields: Record<string, unknown> = { ...entry };
+    const { import: imp, default: def } = fields;
     if (typeof imp === 'string') return imp;
     if (typeof def === 'string') return def;
   }
@@ -73,7 +75,8 @@ for (const source of sources.values()) {
     if (manifest.includes('node_modules')) continue;
     const pkg = readJson(path.join(source.cwd, manifest));
     if (!pkg || typeof pkg !== 'object') continue;
-    const { name, exports: declared, main } = pkg as Record<string, unknown>;
+    const fields: Record<string, unknown> = { ...pkg };
+    const { name, exports: declared, main } = fields;
     if (typeof name !== 'string') continue;
     const dir = path.dirname(manifest) === '.' ? '' : path.dirname(manifest) + '/';
     const exports =

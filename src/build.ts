@@ -5,18 +5,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import * as esbuild from 'esbuild';
-import type {
-  Atlas,
-  AtlasConfig,
-  DescriptionsStore,
-  Flow,
-  PageData,
-  Semantic,
-  SemanticEn,
-  Skeleton,
-} from './types.ts';
+import type { Atlas, DescriptionsStore, PageData, Semantic, SemanticEn, Skeleton } from './types.ts';
 import { atlasPaths, readJson, readJsonOr } from './project.ts';
 import { mergeMap } from './merge.ts';
+import { parseConfig, parseFlows } from './parse.ts';
 import { renderContext } from './context.ts';
 
 const viewer = path.join(import.meta.dirname, 'viewer');
@@ -33,12 +25,12 @@ async function loadModule<T>(name: string): Promise<Partial<T>> {
 }
 
 const { atlas, unknownIds, modulesWithoutCapability, droppedFlowSteps } = mergeMap({
-  config: readJson(paths.config) as AtlasConfig,
+  config: parseConfig(readJson(paths.config)),
   skeleton: readJson(paths.skeleton) as Skeleton,
   semantic: await loadModule<Semantic>('semantic'),
   english: await loadModule<SemanticEn>('semantic_en'),
   descriptions: readJsonOr<DescriptionsStore>(paths.descriptions, { nodes: {}, files: {} }),
-  savedFlows: readJsonOr<Flow[]>(paths.flows, []),
+  savedFlows: parseFlows(readJsonOr<unknown>(paths.flows, [])),
 });
 if (unknownIds.length) {
   console.error('unknown ids:\n' + unknownIds.join('\n'));

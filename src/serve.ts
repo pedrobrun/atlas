@@ -17,6 +17,8 @@ import type {
   Skeleton,
 } from './types.ts';
 import { atlasPaths, moduleHash, readJsonOr } from './project.ts';
+import type { DescDraft } from './parse.ts';
+import { parseChatRequest, parseDescribeRequest, parseDescription, parseFlow, parseFlows } from './parse.ts';
 import {
   chatFlags,
   chatSystemPrompt,
@@ -65,7 +67,6 @@ function chat(res: http.ServerResponse, { message, session, lang, about }: ChatR
 
 // When someone opens a module with no description, the agent reads its files and describes the
 // module and each file. Cached in descriptions.local.json, keyed to the hash of the code it read.
-type DescDraft = { biz_en?: string; biz_pt?: string; tech_en?: string; tech_pt?: string };
 const toDesc = (o: DescDraft, describedHash: string): Desc => ({
   biz: o.biz_pt,
   biz_en: o.biz_en,
@@ -90,15 +91,12 @@ function describe(res: http.ServerResponse, { id }: DescribeRequest) {
   child.stderr.on('data', (d: Buffer) => process.stderr.write(d));
   child.on('close', () => {
     try {
-      const got = fencedJson(JSON.parse(out).result || '') as {
-        module?: DescDraft;
-        files?: Record<string, DescDraft>;
-      };
+      const got = parseDescription(fencedJson(JSON.parse(out).result || ''));
       const store = readJsonOr<DescriptionsStore>(paths.descriptions, { nodes: {}, files: {} });
       if (got.module) store.nodes[id] = toDesc(got.module, moduleHash(mod.files));
       const files: Record<string, Desc> = {};
       for (const f of mod.files) {
-        const draft = got.files?.[f.path];
+        const draft = got.files[f.path];
         if (draft) files[f.path] = store.files[f.path] = toDesc(draft, f.hash);
       }
       fs.writeFileSync(paths.descriptions, JSON.stringify(store, null, 2));
@@ -114,7 +112,7 @@ function describe(res: http.ServerResponse, { id }: DescribeRequest) {
 
 // Saved flows are kept next to the semantic layer and the page is rebuilt.
 function saveFlow(res: http.ServerResponse, flow: Flow) {
-  const flows = readJsonOr<Flow[]>(paths.flows, []);
+  const flows = parseFlows(readJsonOr<unknown>(paths.flows, []));
   const i = flows.findIndex((f) => f.id === flow.id);
   if (i >= 0) flows[i] = flow;
   else flows.push(flow);
@@ -130,10 +128,11 @@ function saveFlow(res: http.ServerResponse, flow: Flow) {
   });
 }
 
-const routes: Record<string, (res: http.ServerResponse, body: string) => void> = {
-  '/chat': (res, body) => chat(res, JSON.parse(body) as ChatRequest),
-  '/describe': (res, body) => describe(res, JSON.parse(body) as DescribeRequest),
-  '/flows': (res, body) => saveFlow(res, JSON.parse(body) as Flow),
+// Each route parses its body first; a body it can't use is a 400 with the reason.
+const routes: Record<string, (res: http.ServerResponse, body: unknown) => void> = {
+  '/chat': (res, body) => chat(res, parseChatRequest(body)),
+  '/describe': (res, body) => describe(res, parseDescribeRequest(body)),
+  '/flows': (res, body) => saveFlow(res, parseFlow(body)),
 };
 
 function handle(req: http.IncomingMessage, res: http.ServerResponse) {
@@ -143,7 +142,7 @@ function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     req.on('data', (d: Buffer) => (body += d));
     req.on('end', () => {
       try {
-        route(res, body);
+        route(res, JSON.parse(body));
       } catch (e) {
         res.writeHead(400);
         res.end(String(e));
