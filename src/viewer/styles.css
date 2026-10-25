@@ -100,8 +100,15 @@ button {
   gap: 8px;
 }
 .brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-weight: 680;
   letter-spacing: -0.01em;
+}
+.brand svg {
+  width: 18px;
+  height: 18px;
 }
 .crumbs {
   display: flex;

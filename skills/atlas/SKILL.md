@@ -21,7 +21,7 @@ Work through these in order. Each step ends with a command whose output tells yo
 
 The project folder holds `.atlas/` and is where the map lives. Use the current directory. If the current directory is a git repo and its parent folder contains other git repos, ask the user once whether to map only this repo or the whole parent folder. A map can also live in one "home" repo and describe its sibling repos.
 
-The sources are the git repos inside the project folder: the folder itself if it is a repo, otherwise each direct child that is one.
+The sources are the git repos inside the project folder: the folder itself if it is a repo, otherwise each direct child that is one. In a monorepo, make each top-level app or package its own source, so the map shows them as separate blocks.
 
 ### 2. Write `.atlas/atlas.config.json`
 

@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/logo.svg" width="96" alt=""></p>
+
 # Atlas
 
 A living, semantic, 3D map of a codebase, written and kept current by the coding agent that already works in it.

@@ -7,6 +7,7 @@ import { renderContext } from './context.ts';
 
 const viewer = path.join(import.meta.dirname, 'viewer');
 const bundled = path.join(import.meta.dirname, '..', 'dist', 'viewer.js');
+const logo = path.join(import.meta.dirname, '..', 'assets', 'logo.svg');
 const project = path.resolve(process.argv[2] || '.');
 const paths = atlasPaths(project);
 
@@ -44,6 +45,7 @@ function renderPage(data: PageData) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Atlas · ${data.config.name.replace(/[<&]/g, '')}</title>
+<link rel="icon" href="data:image/svg+xml,${encodeURIComponent(fs.readFileSync(logo, 'utf8'))}">
 <style>${fs.readFileSync(path.join(viewer, 'styles.css'), 'utf8')}</style>
 </head>
 <body>
