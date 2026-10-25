@@ -41,27 +41,49 @@ export function applyState(instant = false) {
 function label(n: TreeNode, r: Role, f: TreeNode, lit: Set<string>, steps: string[]) {
   const el = n.label!.element;
   const childOfFocus = n.parent === f || (n.parent?.kind === 'group' && n.parent.parent === f);
-  let show = false, cls = 'lab';
-  if (lit.size && n.kind === 'module') { show = lit.has(n.id); cls += ' hl small'; }
-  else if (lit.size && r === 'district' && n.parent !== view.root) show = false;
-  else if (state.flow) { show = r === 'closed' || r === 'shell'; if (r === 'closed') cls += n.curStep ? ' step big' : ' step'; if (r === 'shell') cls += ' ctx big'; }
-  else if (r === 'district') { show = true; if (n.parent === view.root) cls += ' big'; }
-  else if (r === 'closed' && f === view.root && n.kind === 'module') { show = state.lens === 'cap' && countLoc(n) >= 450; cls += ' small'; }
-  else if (r === 'closed' && childOfFocus) { show = true; if (n.kind === 'file' || n.kind === 'module') cls += ' small'; if (n.kind === 'cap' || n.kind === 'repo') cls += ' big'; }
-  else if (r === 'context' && n.parent === (f.parent || view.root) && n.kind !== 'group') { show = true; cls += ' ctx'; }
+  let show = false,
+    cls = 'lab';
+  if (lit.size && n.kind === 'module') {
+    show = lit.has(n.id);
+    cls += ' hl small';
+  } else if (lit.size && r === 'district' && n.parent !== view.root) show = false;
+  else if (state.flow) {
+    show = r === 'closed' || r === 'shell';
+    if (r === 'closed') cls += n.curStep ? ' step big' : ' step';
+    if (r === 'shell') cls += ' ctx big';
+  } else if (r === 'district') {
+    show = true;
+    if (n.parent === view.root) cls += ' big';
+  } else if (r === 'closed' && f === view.root && n.kind === 'module') {
+    show = state.lens === 'cap' && countLoc(n) >= 450;
+    cls += ' small';
+  } else if (r === 'closed' && childOfFocus) {
+    show = true;
+    if (n.kind === 'file' || n.kind === 'module') cls += ' small';
+    if (n.kind === 'cap' || n.kind === 'repo') cls += ' big';
+  } else if (r === 'context' && n.parent === (f.parent || view.root) && n.kind !== 'group') {
+    show = true;
+    cls += ' ctx';
+  }
   el.className = cls;
   n.label!.visible = show;
   if (!show) return;
   let name = n.kind === 'module' && state.flow ? modLabel(n.id) : n.name;
-  if (state.flow && r === 'closed') name = `${steps.flatMap((s, i) => (s === n.id ? [i + 1] : [])).join(' · ')}  ${modLabel(n.id)}`;
+  if (state.flow && r === 'closed')
+    name = `${steps.flatMap((s, i) => (s === n.id ? [i + 1] : [])).join(' · ')}  ${modLabel(n.id)}`;
   el.querySelector('.n')!.textContent = name;
 }
 
 /** Opens a box; a file is selected inside its module. */
 export function open(n: TreeNode) {
   state.hl = null;
-  if (ENTER.has(n.kind)) { state.focus = n.id; state.sel = null; }
-  else { state.focus = (n.parent && ENTER.has(n.parent.kind) ? n.parent : n.parent?.parent || view.root).id; state.sel = n.id; }
+  if (ENTER.has(n.kind)) {
+    state.focus = n.id;
+    state.sel = null;
+  } else {
+    state.focus = (n.parent && ENTER.has(n.parent.kind) ? n.parent : n.parent?.parent || view.root).id;
+    state.sel = n.id;
+  }
   nav.hovered = null;
   applyState();
 }
@@ -81,11 +103,18 @@ export function goUp() {
 
 export function goTo(id: string) {
   state.flow = '';
-  if (!view.T[id]) { // a capability in the repos lens: light its modules instead
-    if (id.startsWith('cap:')) { state.hl = [id]; state.focus = 'root'; applyState(); }
+  if (!view.T[id]) {
+    // a capability in the repos lens: light its modules instead
+    if (id.startsWith('cap:')) {
+      state.hl = [id];
+      state.focus = 'root';
+      applyState();
+    }
     return;
   }
-  state.hl = null; state.focus = id; state.sel = null;
+  state.hl = null;
+  state.focus = id;
+  state.sel = null;
   applyState();
 }
 
@@ -98,7 +127,9 @@ export function stepBy(d: number) {
 
 /** Lights modules up, backing out only as far as needed to show them all. */
 export function light(ids: string[]) {
-  state.flow = ''; state.sel = null; state.hl = ids;
+  state.flow = '';
+  state.sel = null;
+  state.hl = ids;
   const lit = [...litSet()];
   let f = view.T[state.focus] || view.root;
   while (f !== view.root && (f.kind === 'group' || !lit.every((id) => inside(id, f)))) f = f.parent!;
@@ -107,7 +138,10 @@ export function light(ids: string[]) {
 }
 
 export function showFlow(id: string) {
-  state.hl = null; state.sel = null; state.flow = id; state.step = 0;
+  state.hl = null;
+  state.sel = null;
+  state.flow = id;
+  state.step = 0;
   if (!id) state.focus = 'root';
   applyState();
 }

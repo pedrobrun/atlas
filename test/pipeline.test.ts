@@ -20,7 +20,10 @@ const repos: Record<string, Record<string, string>> = {
     'src/ui/button.test.tsx': `throw new Error('tests are skipped');\n`,
   },
   billing: {
-    'package.json': JSON.stringify({ name: '@acme/billing', exports: { '.': './src/index.ts', './invoices': './src/invoices/index.ts' } }),
+    'package.json': JSON.stringify({
+      name: '@acme/billing',
+      exports: { '.': './src/index.ts', './invoices': './src/invoices/index.ts' },
+    }),
     'src/index.ts': `export * from './invoices';\nexport { total } from './tax';\n`,
     'src/tax.ts': `export const total = (n: number) => n * 1.2;\n`,
     'src/invoices/index.ts': `import { total } from '../tax';\nimport { render } from './pdf';\nexport const invoice = (n: number) => render(total(n));\n`,
@@ -33,14 +36,24 @@ const config = {
   language: 'en',
   languages: ['en', 'pt'],
   sources: [
-    { id: 'web', dir: 'web', color: '#3b9ae8', aliases: { '@/': 'src/' },
+    {
+      id: 'web',
+      dir: 'web',
+      color: '#3b9ae8',
+      aliases: { '@/': 'src/' },
       modules: [
         { match: '^src/app/api/([^/]+)/', area: 'api', module: '$1' },
         { match: '^src/app/page\\.tsx$', area: 'pages', module: 'home' },
         { match: '^src/(lib|ui)/([^/.]+)', area: '$1', module: '$2' },
-      ] },
-    { id: 'billing', dir: 'billing', name: 'billing-service', role: 'legacy',
-      modules: [{ match: '^src/([^/.]+)', area: 'core', areaName: '@acme/billing', module: '$1' }] },
+      ],
+    },
+    {
+      id: 'billing',
+      dir: 'billing',
+      name: 'billing-service',
+      role: 'legacy',
+      modules: [{ match: '^src/([^/.]+)', area: 'core', areaName: '@acme/billing', module: '$1' }],
+    },
   ],
   chat: { suggestions: { en: ['How does checkout work?'] } },
 };
@@ -79,20 +92,42 @@ export const flows = { checkout: { name: 'Checkout', steps: ['Takes the order.',
 `;
 const store = {
   'descriptions.local.json': JSON.stringify({
-    nodes: { 'web/lib/cart': { biz: 'O carrinho.', biz_en: 'The cart.', confidence: 'generated', describedHash: 'stale000' } },
-    files: { 'web/src/lib/cart.ts': { tech_en: 'Adds an item.', confidence: 'generated', describedHash: 'x' } },
+    nodes: {
+      'web/lib/cart': {
+        biz: 'O carrinho.',
+        biz_en: 'The cart.',
+        confidence: 'generated',
+        describedHash: 'stale000',
+      },
+    },
+    files: {
+      'web/src/lib/cart.ts': { tech_en: 'Adds an item.', confidence: 'generated', describedHash: 'x' },
+    },
   }),
   'flows.local.json': JSON.stringify([
-    { id: 'browse', name: 'Navegar', name_en: 'Browse', confidence: 'inferred', steps: [
-      { unit: 'web/pages/home', text: 'Abre a home.', text_en: 'Opens home.', anchor: null },
-      { unit: 'web/gone/module', text: 'Sumiu.', anchor: null },
-    ] },
+    {
+      id: 'browse',
+      name: 'Navegar',
+      name_en: 'Browse',
+      confidence: 'inferred',
+      steps: [
+        { unit: 'web/pages/home', text: 'Abre a home.', text_en: 'Opens home.', anchor: null },
+        { unit: 'web/gone/module', text: 'Sumiu.', anchor: null },
+      ],
+    },
   ]),
 };
 
 // Fixed identity and dates, so commit hashes in the skeleton are stable.
-const gitEnv = { ...process.env, GIT_AUTHOR_NAME: 'Test', GIT_AUTHOR_EMAIL: 'test@example.com', GIT_COMMITTER_NAME: 'Test',
-  GIT_COMMITTER_EMAIL: 'test@example.com', GIT_AUTHOR_DATE: '2000-01-01T00:00:00Z', GIT_COMMITTER_DATE: '2000-01-01T00:00:00Z' };
+const gitEnv = {
+  ...process.env,
+  GIT_AUTHOR_NAME: 'Test',
+  GIT_AUTHOR_EMAIL: 'test@example.com',
+  GIT_COMMITTER_NAME: 'Test',
+  GIT_COMMITTER_EMAIL: 'test@example.com',
+  GIT_AUTHOR_DATE: '2000-01-01T00:00:00Z',
+  GIT_COMMITTER_DATE: '2000-01-01T00:00:00Z',
+};
 
 function makeProject() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'atlas-test-'));
@@ -101,7 +136,8 @@ function makeProject() {
       fs.mkdirSync(path.dirname(path.join(dir, repo, f)), { recursive: true });
       fs.writeFileSync(path.join(dir, repo, f), text);
     }
-    const git = (...args: string[]) => execFileSync('git', args, { cwd: path.join(dir, repo), env: gitEnv, stdio: 'ignore' });
+    const git = (...args: string[]) =>
+      execFileSync('git', args, { cwd: path.join(dir, repo), env: gitEnv, stdio: 'ignore' });
     git('init', '-q', '-b', 'main');
     git('add', '-A');
     git('commit', '-q', '-m', 'fixture');
@@ -115,7 +151,10 @@ function makeProject() {
 }
 
 const run = (script: string, project: string) =>
-  execFileSync(process.execPath, [path.join(tool, 'src', script), project], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  execFileSync(process.execPath, [path.join(tool, 'src', script), project], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
 
 test('skeleton and build produce the pinned map for a two-repo project', (t) => {
   const project = makeProject();
@@ -128,7 +167,9 @@ test('skeleton and build produce the pinned map for a two-repo project', (t) => 
     delete skeleton.generatedAt;
     t.assert.snapshot(skeleton);
 
-    const context = fs.readFileSync(path.join(out, 'atlas-context.md'), 'utf8').replace(/Generated \S+\./, 'Generated <time>.');
+    const context = fs
+      .readFileSync(path.join(out, 'atlas-context.md'), 'utf8')
+      .replace(/Generated \S+\./, 'Generated <time>.');
     t.assert.snapshot(context);
 
     const html = fs.readFileSync(path.join(out, 'atlas.html'), 'utf8');

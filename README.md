@@ -2,7 +2,7 @@
 
 A living, semantic, 3D map of a codebase — macro to micro, kept up to date by the agents that write the code.
 
-As more code is written by agents, it gets harder to hold the architecture in your head: which services exist, how they talk, what a module is *for*. Static dependency graphs show structure but lose meaning; generated wikis read like API docs and go stale. Atlas keeps both: a deterministic skeleton (modules, imports, hashes) as evidence, and a semantic layer (what each thing does, flows, invariants, decisions) on top, anchored to `file:line`.
+As more code is written by agents, it gets harder to hold the architecture in your head: which services exist, how they talk, what a module is _for_. Static dependency graphs show structure but lose meaning; generated wikis read like API docs and go stale. Atlas keeps both: a deterministic skeleton (modules, imports, hashes) as evidence, and a semantic layer (what each thing does, flows, invariants, decisions) on top, anchored to `file:line`.
 
 > **Status: prototype.**
 
@@ -43,13 +43,22 @@ npm run typecheck                    # tsc --noEmit over src/
   "name": "Acme",
   "language": "en",
   "sources": [
-    { "id": "web", "dir": "web", "color": "#3b9ae8", "aliases": { "@/": "src/" },
+    {
+      "id": "web",
+      "dir": "web",
+      "color": "#3b9ae8",
+      "aliases": { "@/": "src/" },
       "modules": [
         { "match": "^src/app/api/([^/]+)/", "area": "api", "module": "$1" },
         { "match": "^src/([^/]+)/([^/.]+)", "area": "$1", "module": "$2" }
-      ] },
-    { "id": "billing", "dir": "billing", "role": "legacy",
-      "modules": [ { "match": "^lib/([^/.]+)", "area": "lib", "module": "$1" } ] }
+      ]
+    },
+    {
+      "id": "billing",
+      "dir": "billing",
+      "role": "legacy",
+      "modules": [{ "match": "^lib/([^/.]+)", "area": "lib", "module": "$1" }]
+    }
   ],
   "chat": { "suggestions": { "en": ["How does checkout work?"] } }
 }
@@ -61,18 +70,18 @@ The config and the semantic layer are typed in `src/types.ts` (`AtlasConfig`, `S
 
 ## What's in the box
 
-| Path | What it does |
-|---|---|
-| `src/types.ts` | The contract: project config, semantic layer, skeleton, the data embedded in the page, and the server protocols. |
-| `src/skeleton.ts` | Walks each source's `git ls-files`, maps files to areas → modules by the config rules, resolves imports into edges, hashes content. No LLM. |
-| `src/build.ts` | Validates semantic ids, marks descriptions stale by hash, merges agent-written descriptions and flows, bundles the viewer with esbuild, writes one self-contained page and the agent's context file. |
-| `src/serve.ts` | Local server: `/chat` (streams the agent's answer, which can light modules up in 3D), `/describe` (describes a module and its files on first visit, cached), `/flows` (saves a flow the chat documented). |
-| `src/viewer/` | The viewer, bundled into the page. `tree.ts` lays out the nested boxes, `roles.ts` decides what is visible for a focus/flow/highlight, `scene.ts` draws and animates with three.js, `nav.ts` moves around, `panels.ts`, `chat.ts` and `pick.ts` are the UI. |
+| Path              | What it does                                                                                                                                                                                                                                                |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/types.ts`    | The contract: project config, semantic layer, skeleton, the data embedded in the page, and the server protocols.                                                                                                                                            |
+| `src/skeleton.ts` | Walks each source's `git ls-files`, maps files to areas → modules by the config rules, resolves imports into edges, hashes content. No LLM.                                                                                                                 |
+| `src/build.ts`    | Validates semantic ids, marks descriptions stale by hash, merges agent-written descriptions and flows, bundles the viewer with esbuild, writes one self-contained page and the agent's context file.                                                        |
+| `src/serve.ts`    | Local server: `/chat` (streams the agent's answer, which can light modules up in 3D), `/describe` (describes a module and its files on first visit, cached), `/flows` (saves a flow the chat documented).                                                   |
+| `src/viewer/`     | The viewer, bundled into the page. `tree.ts` lays out the nested boxes, `roles.ts` decides what is visible for a focus/flow/highlight, `scene.ts` draws and animates with three.js, `nav.ts` moves around, `panels.ts`, `chat.ts` and `pick.ts` are the UI. |
 
 ## Decisions so far
 
 - **Semantics first, structure as evidence.** Every claim should point at `file:line`; descriptions carry the hash they were written against and show as stale when the code moves.
-- **Generic meta-model, per-project taxonomy.** Capability, Unit, Flow, Concept, Invariant, Decision are fixed; *which* capabilities a project has is data.
+- **Generic meta-model, per-project taxonomy.** Capability, Unit, Flow, Concept, Invariant, Decision are fixed; _which_ capabilities a project has is data.
 - **The map lives with the project, never with the tool.** Per repo, at a workspace root, in its own repo, or in a "home" repo that describes several.
 - **Updates:** the skeleton always; semantic text is marked stale immediately and regenerated at the end of an agent session (`Stop` hook) or on `atlas sync`.
 - **Runs on the user's agent** locally; a hosted view (with an architecture diff per PR) needs its own key.

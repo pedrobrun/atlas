@@ -42,11 +42,18 @@ export interface AtlasConfig {
 // Content fields hold the project's base text; an `<field>_en` twin holds English.
 // The viewer picks by language and falls back to the other.
 
-export interface Anchor { path: string; line: number; note: string; note_en?: string }
+export interface Anchor {
+  path: string;
+  line: number;
+  note: string;
+  note_en?: string;
+}
 
 export interface Desc {
-  biz?: string; biz_en?: string;
-  tech?: string; tech_en?: string;
+  biz?: string;
+  biz_en?: string;
+  tech?: string;
+  tech_en?: string;
   confidence?: Confidence;
   anchors?: Anchor[];
   /** Hash of the code the text was written against; differs from the node's hash when stale. */
@@ -55,7 +62,12 @@ export interface Desc {
 
 // ---------- skeleton (written by skeleton.ts) ----------
 
-export interface FileEntry { path: string; hash: string; loc: number; desc?: Desc }
+export interface FileEntry {
+  path: string;
+  hash: string;
+  loc: number;
+  desc?: Desc;
+}
 
 export type NodeKind = 'repo' | 'area' | 'module';
 
@@ -78,53 +90,91 @@ export interface SkNode {
   legacy?: string;
 }
 
-export interface Edge { from: string; to: string; kind: 'uses' | 'consumes'; w: number }
+export interface Edge {
+  from: string;
+  to: string;
+  kind: 'uses' | 'consumes';
+  w: number;
+}
 
-export interface Skeleton { generatedAt: string; nodes: SkNode[]; edges: Edge[] }
+export interface Skeleton {
+  generatedAt: string;
+  nodes: SkNode[];
+  edges: Edge[];
+}
 
 // ---------- semantic layer (<project>/.atlas/semantic.{ts,mjs}) ----------
 
 export interface Capability {
   id: string;
-  name: string; name_en?: string;
-  biz?: string; biz_en?: string;
-  tech?: string; tech_en?: string;
+  name: string;
+  name_en?: string;
+  biz?: string;
+  biz_en?: string;
+  tech?: string;
+  tech_en?: string;
   /** Module ids this capability claims. */
   rules: RegExp[];
 }
 
-export interface FlowStep { unit: string; text: string; text_en?: string; anchor: string | null }
+export interface FlowStep {
+  unit: string;
+  text: string;
+  text_en?: string;
+  anchor: string | null;
+}
 
 export interface Flow {
   id: string;
-  name: string; name_en?: string;
-  biz?: string; biz_en?: string;
+  name: string;
+  name_en?: string;
+  biz?: string;
+  biz_en?: string;
   confidence: Confidence;
   steps: FlowStep[];
 }
 
 export interface Invariant {
   id: string;
-  name: string; name_en?: string;
-  biz?: string; biz_en?: string;
+  name: string;
+  name_en?: string;
+  biz?: string;
+  biz_en?: string;
   guard: 'test' | 'type' | 'partial' | 'none';
   guardPath: string;
   scope: string[];
   decision?: string;
 }
 
-export interface Decision { id: string; name: string; name_en?: string; path: string; units: string[]; note?: string; note_en?: string }
+export interface Decision {
+  id: string;
+  name: string;
+  name_en?: string;
+  path: string;
+  units: string[];
+  note?: string;
+  note_en?: string;
+}
 
 export interface Concept {
   id: string;
-  name: string; name_en?: string;
-  biz?: string; biz_en?: string;
+  name: string;
+  name_en?: string;
+  biz?: string;
+  biz_en?: string;
   store?: string;
   confidence?: Confidence;
-  owner: string[]; writes: string[]; reads: string[];
+  owner: string[];
+  writes: string[];
+  reads: string[];
 }
 
-export interface LegacyStatus { label: string; label_en?: string; note: string; note_en?: string }
+export interface LegacyStatus {
+  label: string;
+  label_en?: string;
+  note: string;
+  note_en?: string;
+}
 
 export interface Semantic {
   system?: Desc;
@@ -153,11 +203,18 @@ export interface SemanticEn {
 
 // ---------- the store the agent writes (<project>/.atlas/*.local.json) ----------
 
-export interface DescriptionsStore { nodes: Record<string, Desc>; files: Record<string, Desc> }
+export interface DescriptionsStore {
+  nodes: Record<string, Desc>;
+  files: Record<string, Desc>;
+}
 
 // ---------- what build.ts embeds in the page ----------
 
-export interface PageSource { id: string; name: string; color?: string }
+export interface PageSource {
+  id: string;
+  name: string;
+  color?: string;
+}
 
 export interface PageData {
   config: { name: string; lang: Lang; sources: PageSource[]; suggestions: Partial<Record<Lang, string[]>> };
@@ -172,7 +229,12 @@ export interface PageData {
 
 // ---------- server protocols ----------
 
-export interface ChatRequest { message: string; session: string | null; lang: Lang; about: string | null }
+export interface ChatRequest {
+  message: string;
+  session: string | null;
+  lang: Lang;
+  about: string | null;
+}
 
 /** /chat streams one JSON object per line. */
 export type ChatEvent =
@@ -180,16 +242,26 @@ export type ChatEvent =
   | { type: 'delta'; text: string }
   | { type: 'done'; text: string; session?: string; error: string | null };
 
-export interface DescribeRequest { id: string }
-export interface DescribeResponse { module: Desc | null; files: Record<string, Desc> }
+export interface DescribeRequest {
+  id: string;
+}
+export interface DescribeResponse {
+  module: Desc | null;
+  files: Record<string, Desc>;
+}
 
-export interface SaveFlowResponse { ok: boolean; log: string[] }
+export interface SaveFlowResponse {
+  ok: boolean;
+  log: string[];
+}
 
 /** What a drafted flow looks like when the agent writes it (both languages inline). */
 export interface FlowDraft {
   id?: string;
-  name_en?: string; name_pt?: string;
-  biz_en?: string; biz_pt?: string;
+  name_en?: string;
+  name_pt?: string;
+  biz_en?: string;
+  biz_pt?: string;
   confidence?: string;
   steps?: { unit: string; text_en?: string; text_pt?: string; anchor?: string }[];
 }

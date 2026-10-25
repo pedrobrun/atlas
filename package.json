@@ -15,7 +15,8 @@
     "check:private": "scripts/check-private.sh",
     "test": "node --test test/*.test.ts",
     "test:update": "node --test --test-update-snapshots test/*.test.ts",
-    "check": "tsc --noEmit && node --test test/*.test.ts && scripts/check-private.sh"
+    "check": "tsc --noEmit && prettier --check . && node --test test/*.test.ts && scripts/check-private.sh",
+    "format": "prettier --write ."
   },
   "dependencies": {
     "esbuild": "0.28.2",
@@ -24,6 +25,7 @@
   "devDependencies": {
     "@types/node": "24.19.2",
     "@types/three": "0.186.0",
+    "prettier": "3.9.10",
     "typescript": "7.0.2"
   }
 }

@@ -18,8 +18,27 @@ export interface State {
 }
 
 const KEY = 'atlas3d';
-export const state: State = { lens: 'cap', lang: D.config.lang, focus: 'root', sel: null, flow: '', step: 0, hl: null, panel: null };
-try { Object.assign(state, JSON.parse(sessionStorage.getItem(KEY) || '{}')); } catch { /* private window: start fresh */ }
+export const state: State = {
+  lens: 'cap',
+  lang: D.config.lang,
+  focus: 'root',
+  sel: null,
+  flow: '',
+  step: 0,
+  hl: null,
+  panel: null,
+};
+try {
+  Object.assign(state, JSON.parse(sessionStorage.getItem(KEY) || '{}'));
+} catch {
+  /* private window: start fresh */
+}
 if (state.flow && !FLOW[state.flow]) state.flow = '';
 
-export const save = () => { try { sessionStorage.setItem(KEY, JSON.stringify(state)); } catch { /* not persisted */ } };
+export const save = () => {
+  try {
+    sessionStorage.setItem(KEY, JSON.stringify(state));
+  } catch {
+    /* not persisted */
+  }
+};

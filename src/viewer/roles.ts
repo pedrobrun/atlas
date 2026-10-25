@@ -28,7 +28,13 @@ export const stepModules = () => FLOW[state.flow]?.steps.map((s) => s.unit) ?? [
 export function litSet(): Set<string> {
   const { T } = view;
   if (!state.hl?.length || state.flow) return new Set();
-  return new Set(state.hl.flatMap((id) => (T[id] ? modulesUnder(T[id]) : modules.filter((m) => 'cap:' + m.cap === id).map((m) => m.id))).filter((id) => T[id]));
+  return new Set(
+    state.hl
+      .flatMap((id) =>
+        T[id] ? modulesUnder(T[id]) : modules.filter((m) => 'cap:' + m.cap === id).map((m) => m.id),
+      )
+      .filter((id) => T[id]),
+  );
 }
 
 export function computeRoles(): Record<string, Role> {
@@ -38,21 +44,30 @@ export function computeRoles(): Record<string, Role> {
   // reveal the children of n, opening groups
   const showInside = (n: TreeNode) => {
     for (const c of n.children) {
-      if (c.kind === 'group') { roles[c.id] = 'plate'; showInside(c); }
-      else roles[c.id] = 'closed';
+      if (c.kind === 'group') {
+        roles[c.id] = 'plate';
+        showInside(c);
+      } else roles[c.id] = 'closed';
     }
   };
   // reveal everything down to modules: containers become glass districts
   const openDeep = (n: TreeNode) => {
     for (const c of n.children) {
-      if (c.kind === 'group') { roles[c.id] = 'plate'; openDeep(c); }
-      else if (c.kind === 'module') roles[c.id] = 'closed';
-      else { roles[c.id] = 'district'; openDeep(c); }
+      if (c.kind === 'group') {
+        roles[c.id] = 'plate';
+        openDeep(c);
+      } else if (c.kind === 'module') roles[c.id] = 'closed';
+      else {
+        roles[c.id] = 'district';
+        openDeep(c);
+      }
     }
   };
   const dimUnlit = () => {
     const lit = litSet();
-    if (lit.size) for (const id in T) if (T[id].kind === 'module' && !lit.has(id) && roles[id] === 'closed') roles[id] = 'dim';
+    if (lit.size)
+      for (const id in T)
+        if (T[id].kind === 'module' && !lit.has(id) && roles[id] === 'closed') roles[id] = 'dim';
   };
 
   if (state.flow) {
@@ -65,14 +80,19 @@ export function computeRoles(): Record<string, Role> {
     return roles;
   }
   const f = T[state.focus] || root;
-  if (f === root) { openDeep(root); dimUnlit(); return roles; }
+  if (f === root) {
+    openDeep(root);
+    dimUnlit();
+    return roles;
+  }
   // the focus is open; its ancestors are faint shells; their other children stay as context
   roles[f.id] = 'glass';
   showInside(f);
   const faint = f.kind === 'module' || f.kind === 'area';
   for (const a of ancestors(f)) {
     if (a.kind !== 'root') roles[a.id] = a.kind === 'group' ? 'context' : 'shell';
-    for (const s of a.children) if (roles[s.id] === 'hidden') roles[s.id] = faint && a !== root ? 'far' : 'context';
+    for (const s of a.children)
+      if (roles[s.id] === 'hidden') roles[s.id] = faint && a !== root ? 'far' : 'context';
   }
   dimUnlit();
   return roles;

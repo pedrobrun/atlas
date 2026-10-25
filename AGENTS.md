@@ -5,6 +5,7 @@
 This repository will be open source. It must never contain anything that belongs to a real company, client or person — not in code, comments, tests, fixtures, examples, docs, commit messages, branch names, PR titles or PR descriptions. Once something reaches git history or GitHub it is effectively public; a later commit does not remove it.
 
 That includes, without exception:
+
 - names of companies, clients, products, people, repos, packages or package scopes;
 - repo layouts, file paths, module names, table names or routes taken from a real codebase;
 - semantic descriptions, flows, invariants or decisions written about a real codebase;
