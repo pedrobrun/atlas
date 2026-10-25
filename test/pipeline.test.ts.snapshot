@@ -1,0 +1,599 @@
+exports[`skeleton and build produce the pinned map for a two-repo project 1`] = `
+{
+  "nodes": [
+    {
+      "id": "repo:web",
+      "files": [],
+      "loc": 0,
+      "kind": "repo",
+      "name": "web",
+      "role": null,
+      "sha": "340d5ff",
+      "branch": "main"
+    },
+    {
+      "id": "web/api",
+      "files": [],
+      "loc": 4,
+      "kind": "area",
+      "name": "api",
+      "parent": "repo:web"
+    },
+    {
+      "id": "web/api/orders",
+      "files": [
+        {
+          "path": "web/src/app/api/orders/route.ts",
+          "hash": "f23230ec",
+          "loc": 4
+        }
+      ],
+      "loc": 4,
+      "kind": "module",
+      "name": "orders",
+      "parent": "web/api"
+    },
+    {
+      "id": "web/pages",
+      "files": [],
+      "loc": 3,
+      "kind": "area",
+      "name": "pages",
+      "parent": "repo:web"
+    },
+    {
+      "id": "web/pages/home",
+      "files": [
+        {
+          "path": "web/src/app/page.tsx",
+          "hash": "8a9f207c",
+          "loc": 3
+        }
+      ],
+      "loc": 3,
+      "kind": "module",
+      "name": "home",
+      "parent": "web/pages"
+    },
+    {
+      "id": "web/lib",
+      "files": [],
+      "loc": 2,
+      "kind": "area",
+      "name": "lib",
+      "parent": "repo:web"
+    },
+    {
+      "id": "web/lib/cart",
+      "files": [
+        {
+          "path": "web/src/lib/cart.ts",
+          "hash": "444a56ac",
+          "loc": 2
+        }
+      ],
+      "loc": 2,
+      "kind": "module",
+      "name": "cart",
+      "parent": "web/lib"
+    },
+    {
+      "id": "web/ui",
+      "files": [],
+      "loc": 2,
+      "kind": "area",
+      "name": "ui",
+      "parent": "repo:web"
+    },
+    {
+      "id": "web/ui/button",
+      "files": [
+        {
+          "path": "web/src/ui/button.tsx",
+          "hash": "c3ed7f89",
+          "loc": 2
+        }
+      ],
+      "loc": 2,
+      "kind": "module",
+      "name": "button",
+      "parent": "web/ui"
+    },
+    {
+      "id": "repo:billing",
+      "files": [],
+      "loc": 0,
+      "kind": "repo",
+      "name": "billing-service",
+      "role": "legacy",
+      "sha": "bd56157",
+      "branch": "main"
+    },
+    {
+      "id": "billing/core",
+      "files": [],
+      "loc": 11,
+      "kind": "area",
+      "name": "@acme/billing",
+      "parent": "repo:billing"
+    },
+    {
+      "id": "billing/core/index",
+      "files": [
+        {
+          "path": "billing/src/index.ts",
+          "hash": "9d13ce53",
+          "loc": 3
+        }
+      ],
+      "loc": 3,
+      "kind": "module",
+      "name": "index",
+      "parent": "billing/core"
+    },
+    {
+      "id": "billing/core/invoices",
+      "files": [
+        {
+          "path": "billing/src/invoices/index.ts",
+          "hash": "49834fe1",
+          "loc": 4
+        },
+        {
+          "path": "billing/src/invoices/pdf.ts",
+          "hash": "d038879a",
+          "loc": 2
+        }
+      ],
+      "loc": 6,
+      "kind": "module",
+      "name": "invoices",
+      "parent": "billing/core"
+    },
+    {
+      "id": "billing/core/tax",
+      "files": [
+        {
+          "path": "billing/src/tax.ts",
+          "hash": "64eedf1e",
+          "loc": 2
+        }
+      ],
+      "loc": 2,
+      "kind": "module",
+      "name": "tax",
+      "parent": "billing/core"
+    }
+  ],
+  "edges": [
+    {
+      "from": "web/api/orders",
+      "to": "web/lib/cart",
+      "kind": "uses",
+      "w": 1
+    },
+    {
+      "from": "web/api/orders",
+      "to": "billing/core/invoices",
+      "kind": "consumes",
+      "w": 1
+    },
+    {
+      "from": "web/pages/home",
+      "to": "web/ui/button",
+      "kind": "uses",
+      "w": 1
+    },
+    {
+      "from": "billing/core/index",
+      "to": "billing/core/invoices",
+      "kind": "uses",
+      "w": 1
+    },
+    {
+      "from": "billing/core/index",
+      "to": "billing/core/tax",
+      "kind": "uses",
+      "w": 1
+    },
+    {
+      "from": "billing/core/invoices",
+      "to": "billing/core/tax",
+      "kind": "uses",
+      "w": 1
+    }
+  ]
+}
+`;
+
+exports[`skeleton and build produce the pinned map for a two-repo project 2`] = `
+"# Atlas — Acme\\n\\nGenerated <time>. Paths are relative to the project root (the cwd).\\n\\nUm app web e um serviço de cobrança.\\nA shop.\\n\\n## Sources (repos)\\n- repo:web: web @ main 340d5ff \\n- repo:billing: billing-service @ main bd56157 (legacy) \\n\\n## Capabilities (semantic grouping of modules)\\n- cap:buy — Buying: \\n  modules: web/api/orders, web/pages/home, web/lib/cart, web/ui/button\\n- cap:bill — Cobrar: \\n  modules: billing/core/index, billing/core/invoices, billing/core/tax\\n\\n## Modules\\nFormat: id · directory · lines · capability · status. Then description, evidence, dependencies (weight = import count).\\n\\n### web/api/orders\\nweb/src/app/api/orders · 4 lines · Buying\\nPOST que chama a cobrança. — Takes orders. [verified]\\nevidence: web/src/app/api/orders/route.ts:3 (cria a fatura)\\nuses: web/lib/cart (1), billing/core/invoices (1)\\nfiles: route.ts\\n\\n### web/pages/home\\nweb/src/app · 3 lines · Buying\\nuses: web/ui/button (1)\\nfiles: page.tsx\\n\\n### web/lib/cart\\nweb/src/lib · 2 lines · Buying · STALE description\\n — The cart. [generated]\\nused by: web/api/orders (1)\\nfiles: cart.ts\\n\\n### web/ui/button\\nweb/src/ui · 2 lines · Buying\\nused by: web/pages/home (1)\\nfiles: button.tsx\\n\\n### billing/core/index\\nbilling/src · 3 lines · Cobrar\\nuses: billing/core/invoices (1), billing/core/tax (1)\\nfiles: index.ts\\n\\n### billing/core/invoices\\nbilling/src/invoices · 6 lines · Cobrar · STALE description\\nGera faturas.  [inferred]\\nuses: billing/core/tax (1)\\nused by: web/api/orders (1), billing/core/index (1)\\nfiles: index.ts, pdf.ts\\n\\n### billing/core/tax\\nbilling/src · 2 lines · Cobrar · legacy:extracted\\nused by: billing/core/index (1), billing/core/invoices (1)\\nfiles: tax.ts\\n\\n## Flows\\n### flow:checkout — Checkout [verified]\\n1. web/api/orders — Takes the order. (web/src/app/api/orders/route.ts:3)\\n2. billing/core/invoices — Makes the invoice.\\n\\n### flow:browse — Browse [inferred]\\n1. web/pages/home — Opens home.\\n\\n## Invariants\\n- Tax in one place — guard: none (docs/tax.md) — scope: billing/core/tax\\n\\n## Decisions\\n- 0001 Cobrança separada — docs/0001.md\\n\\n## Legacy statuses\\n- extracted: Foi para outro lugar."
+`;
+
+exports[`skeleton and build produce the pinned map for a two-repo project 3`] = `
+{
+  "config": {
+    "name": "Acme",
+    "lang": "en",
+    "languages": [
+      "en",
+      "pt"
+    ],
+    "sources": [
+      {
+        "id": "web",
+        "name": "web",
+        "color": "#3b9ae8",
+        "role": null
+      },
+      {
+        "id": "billing",
+        "name": "billing-service",
+        "role": "legacy"
+      }
+    ],
+    "suggestions": {
+      "en": [
+        "How does checkout work?"
+      ]
+    }
+  },
+  "system": {
+    "biz": "Uma loja.",
+    "tech": "Um app web e um serviço de cobrança.",
+    "biz_en": "A shop."
+  },
+  "nodes": [
+    {
+      "id": "repo:web",
+      "files": [],
+      "loc": 0,
+      "kind": "repo",
+      "name": "web",
+      "role": null,
+      "sha": "340d5ff",
+      "branch": "main",
+      "hash": "da39a3ee"
+    },
+    {
+      "id": "web/api",
+      "files": [],
+      "loc": 4,
+      "kind": "area",
+      "name": "api",
+      "parent": "repo:web",
+      "hash": "da39a3ee"
+    },
+    {
+      "id": "web/api/orders",
+      "files": [
+        {
+          "path": "web/src/app/api/orders/route.ts",
+          "hash": "f23230ec",
+          "loc": 4
+        }
+      ],
+      "loc": 4,
+      "kind": "module",
+      "name": "orders",
+      "parent": "web/api",
+      "hash": "a33613a4",
+      "cap": "buy",
+      "desc": {
+        "biz": "Recebe pedidos.",
+        "tech": "POST que chama a cobrança.",
+        "confidence": "verified",
+        "anchors": [
+          {
+            "path": "web/src/app/api/orders/route.ts",
+            "line": 3,
+            "note": "cria a fatura",
+            "note_en": "creates the invoice"
+          }
+        ],
+        "describedHash": "a33613a4",
+        "biz_en": "Takes orders."
+      },
+      "stale": false
+    },
+    {
+      "id": "web/pages",
+      "files": [],
+      "loc": 3,
+      "kind": "area",
+      "name": "pages",
+      "parent": "repo:web",
+      "hash": "da39a3ee"
+    },
+    {
+      "id": "web/pages/home",
+      "files": [
+        {
+          "path": "web/src/app/page.tsx",
+          "hash": "8a9f207c",
+          "loc": 3
+        }
+      ],
+      "loc": 3,
+      "kind": "module",
+      "name": "home",
+      "parent": "web/pages",
+      "hash": "87876272",
+      "cap": "buy"
+    },
+    {
+      "id": "web/lib",
+      "files": [],
+      "loc": 2,
+      "kind": "area",
+      "name": "lib",
+      "parent": "repo:web",
+      "hash": "da39a3ee"
+    },
+    {
+      "id": "web/lib/cart",
+      "files": [
+        {
+          "path": "web/src/lib/cart.ts",
+          "hash": "444a56ac",
+          "loc": 2,
+          "desc": {
+            "tech_en": "Adds an item.",
+            "confidence": "generated",
+            "describedHash": "x"
+          },
+          "stale": true
+        }
+      ],
+      "loc": 2,
+      "kind": "module",
+      "name": "cart",
+      "parent": "web/lib",
+      "hash": "46db1c3c",
+      "cap": "buy",
+      "desc": {
+        "biz": "O carrinho.",
+        "biz_en": "The cart.",
+        "confidence": "generated",
+        "describedHash": "stale000"
+      },
+      "stale": true
+    },
+    {
+      "id": "web/ui",
+      "files": [],
+      "loc": 2,
+      "kind": "area",
+      "name": "ui",
+      "parent": "repo:web",
+      "hash": "da39a3ee"
+    },
+    {
+      "id": "web/ui/button",
+      "files": [
+        {
+          "path": "web/src/ui/button.tsx",
+          "hash": "c3ed7f89",
+          "loc": 2
+        }
+      ],
+      "loc": 2,
+      "kind": "module",
+      "name": "button",
+      "parent": "web/ui",
+      "hash": "31ae97af",
+      "cap": "buy"
+    },
+    {
+      "id": "repo:billing",
+      "files": [],
+      "loc": 0,
+      "kind": "repo",
+      "name": "billing-service",
+      "role": "legacy",
+      "sha": "bd56157",
+      "branch": "main",
+      "hash": "da39a3ee"
+    },
+    {
+      "id": "billing/core",
+      "files": [],
+      "loc": 11,
+      "kind": "area",
+      "name": "@acme/billing",
+      "parent": "repo:billing",
+      "hash": "da39a3ee"
+    },
+    {
+      "id": "billing/core/index",
+      "files": [
+        {
+          "path": "billing/src/index.ts",
+          "hash": "9d13ce53",
+          "loc": 3
+        }
+      ],
+      "loc": 3,
+      "kind": "module",
+      "name": "index",
+      "parent": "billing/core",
+      "hash": "2303fa75",
+      "cap": "bill"
+    },
+    {
+      "id": "billing/core/invoices",
+      "files": [
+        {
+          "path": "billing/src/invoices/index.ts",
+          "hash": "49834fe1",
+          "loc": 4
+        },
+        {
+          "path": "billing/src/invoices/pdf.ts",
+          "hash": "d038879a",
+          "loc": 2
+        }
+      ],
+      "loc": 6,
+      "kind": "module",
+      "name": "invoices",
+      "parent": "billing/core",
+      "hash": "714789f2",
+      "cap": "bill",
+      "desc": {
+        "tech": "Gera faturas.",
+        "confidence": "inferred",
+        "describedHash": "deadbeef"
+      },
+      "stale": true
+    },
+    {
+      "id": "billing/core/tax",
+      "files": [
+        {
+          "path": "billing/src/tax.ts",
+          "hash": "64eedf1e",
+          "loc": 2
+        }
+      ],
+      "loc": 2,
+      "kind": "module",
+      "name": "tax",
+      "parent": "billing/core",
+      "hash": "78c67cce",
+      "cap": "bill",
+      "legacy": "extracted"
+    }
+  ],
+  "edges": [
+    {
+      "from": "web/api/orders",
+      "to": "web/lib/cart",
+      "kind": "uses",
+      "w": 1
+    },
+    {
+      "from": "web/api/orders",
+      "to": "billing/core/invoices",
+      "kind": "consumes",
+      "w": 1
+    },
+    {
+      "from": "web/pages/home",
+      "to": "web/ui/button",
+      "kind": "uses",
+      "w": 1
+    },
+    {
+      "from": "billing/core/index",
+      "to": "billing/core/invoices",
+      "kind": "uses",
+      "w": 1
+    },
+    {
+      "from": "billing/core/index",
+      "to": "billing/core/tax",
+      "kind": "uses",
+      "w": 1
+    },
+    {
+      "from": "billing/core/invoices",
+      "to": "billing/core/tax",
+      "kind": "uses",
+      "w": 1
+    }
+  ],
+  "caps": [
+    {
+      "id": "buy",
+      "name": "Comprar",
+      "biz": "Pôr coisas no carrinho e pagar.",
+      "name_en": "Buying",
+      "biz_en": "Put things in the cart and pay."
+    },
+    {
+      "id": "bill",
+      "name": "Cobrar"
+    }
+  ],
+  "invariants": [
+    {
+      "id": "tax",
+      "name": "Imposto num lugar só",
+      "guard": "none",
+      "guardPath": "docs/tax.md",
+      "scope": [
+        "billing/core/tax"
+      ],
+      "name_en": "Tax in one place"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "0001",
+      "name": "Cobrança separada",
+      "path": "docs/0001.md",
+      "units": [
+        "billing/core/index"
+      ]
+    }
+  ],
+  "concepts": [
+    {
+      "id": "order",
+      "name": "Pedido",
+      "owner": [
+        "web/api/orders"
+      ],
+      "writes": [],
+      "reads": [
+        "web/lib/cart"
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "checkout",
+      "name": "Finalizar compra",
+      "confidence": "verified",
+      "steps": [
+        {
+          "unit": "web/api/orders",
+          "text": "Recebe o pedido.",
+          "anchor": "web/src/app/api/orders/route.ts:3",
+          "text_en": "Takes the order."
+        },
+        {
+          "unit": "billing/core/invoices",
+          "text": "Gera a fatura.",
+          "anchor": null,
+          "text_en": "Makes the invoice."
+        }
+      ],
+      "name_en": "Checkout"
+    },
+    {
+      "id": "browse",
+      "name": "Navegar",
+      "name_en": "Browse",
+      "confidence": "inferred",
+      "steps": [
+        {
+          "unit": "web/pages/home",
+          "text": "Abre a home.",
+          "text_en": "Opens home.",
+          "anchor": null
+        }
+      ],
+      "local": true
+    }
+  ],
+  "legacy": {
+    "extracted": {
+      "label": "já extraído",
+      "note": "Foi para outro lugar.",
+      "label_en": "extracted"
+    }
+  }
+}
+`;

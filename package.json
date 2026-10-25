@@ -4,13 +4,18 @@
   "private": true,
   "description": "A living, semantic, 3D map of a codebase, kept up to date by the agents that write the code",
   "type": "module",
-  "engines": { "node": ">=24" },
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "skeleton": "node src/skeleton.ts",
     "build": "node src/build.ts",
     "serve": "node src/serve.ts",
     "typecheck": "tsc --noEmit",
-    "check:private": "scripts/check-private.sh"
+    "check:private": "scripts/check-private.sh",
+    "test": "node --test test/*.test.ts",
+    "test:update": "node --test --test-update-snapshots test/*.test.ts",
+    "check": "tsc --noEmit && node --test test/*.test.ts && scripts/check-private.sh"
   },
   "dependencies": {
     "esbuild": "0.28.2",
