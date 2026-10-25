@@ -110,12 +110,11 @@ function nodeCard(n: Extract<TreeNode, { kind: 'repo' | 'area' | 'module' }>) {
   const chips = [
     confidenceChip(d?.confidence),
     cap ? plainChip(esc(L(cap, 'name'))) : '',
-    legacy ? plainChip(`● ${esc(L(legacy, 'label'))}`, LEGACY_COLOR[m.legacy!] ?? 0x888888) : '',
+    legacy ? plainChip(`● ${esc(L(legacy, 'label'))}`, LEGACY_COLOR[m.legacy ?? ''] ?? 0x888888) : '',
   ].join(' ');
+  const hashes = d && `(<code>${d.describedHash}</code> → <code>${m.hash}</code>)`;
   const stale =
-    d && isStale(m)
-      ? `<div class="staleBox">${t('changed')} (<code>${d.describedHash}</code> → <code>${m.hash}</code>). ${t('changedTail')}</div>`
-      : '';
+    d && isStale(m) ? `<div class="staleBox">${t('changed')} ${hashes}. ${t('changedTail')}</div>` : '';
   const evidence = (d?.anchors ?? [])
     .map((a) => `<div class="ev">${esc(a.path)}:${a.line}</div><div class="evn">${esc(L(a, 'note'))}</div>`)
     .join('');
@@ -143,17 +142,19 @@ function flowCard(f: Flow) {
     const anchor = step.anchor
       ? `<div class="ev">${esc(step.anchor)}</div>`
       : `<div class="evn">${t('noAnchor')}</div>`;
-    return (
-      `<li data-step="${i}" class="${current ? 'on' : ''}"><span class="n">${i + 1}</span>` +
-      `<div><div class="t">${esc(L(step, 'text'))}</div><div class="u">${esc(modLabel(step.unit))}</div>${current ? anchor : ''}</div></li>`
-    );
+    const text = `<div class="t">${esc(L(step, 'text'))}</div>`;
+    const module = `<div class="u">${esc(modLabel(step.unit))}</div>`;
+    const number = `<span class="n">${i + 1}</span>`;
+    return `<li data-step="${i}" class="${current ? 'on' : ''}">${number}<div>${text}${module}${current ? anchor : ''}</div></li>`;
   });
   return [
     `<button class="x" data-flow="">×</button><h2>${esc(L(f, 'name'))}</h2>`,
     `<div class="kind">${t('flowWord')} ${confidenceChip(f.confidence)} · ${f.steps.length} ${t('steps')}</div>`,
     `<p class="lede">${esc(L(f, 'biz'))}</p>`,
     `<ol class="steps">${steps.join('')}</ol>`,
-    `<div class="flowNav"><button data-stepby="-1">${t('prev')}</button><button data-stepby="1">${t('next')}</button></div>`,
+    `<div class="flowNav">`,
+    `<button data-stepby="-1">${t('prev')}</button><button data-stepby="1">${t('next')}</button>`,
+    `</div>`,
   ].join('');
 }
 
@@ -176,7 +177,8 @@ export function captionHtml(describing: Set<string>): string {
   const d = descOf(n);
   const lines = n.kind === 'file' ? n.file.loc : countLoc(n);
   const where = n.kind === 'cap' ? '' : `${repoDot(n.repo)} ${esc(repoName[n.repo])} · `;
-  const header = `<div class="k">${where}${kindName(n)} · ${fmt(lines)} ${t('lines')} ${confidenceChip(d && 'confidence' in d ? d.confidence : undefined)}</div>`;
+  const confidence = confidenceChip(d && 'confidence' in d ? d.confidence : undefined);
+  const header = `<div class="k">${where}${kindName(n)} · ${fmt(lines)} ${t('lines')} ${confidence}</div>`;
   const plain = d ? L(d, 'biz') || L(d, 'tech') : '';
   const owner = n.kind === 'file' ? n.parent! : n;
   let body: string;

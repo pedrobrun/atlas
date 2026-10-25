@@ -45,12 +45,15 @@ export function ledes(d: Desc | null | undefined) {
 }
 
 /** A link to a module, with its repo color and an optional count. */
-export const moduleLink = (id: string, count?: number) =>
-  `<button class="nb" data-go="${esc(id)}">${repoDot(repoOf(id))}${esc(modLabel(id))}${count === undefined ? '' : `<small>${count}</small>`}</button>`;
+export function moduleLink(id: string, count?: number) {
+  const tally = count === undefined ? '' : `<small>${count}</small>`;
+  return `<button class="nb" data-go="${esc(id)}">${repoDot(repoOf(id))}${esc(modLabel(id))}${tally}</button>`;
+}
 
 export const flowButton = (f: Flow, detailed = false) => {
   const title = `▶ ${esc(L(f, 'name'))}${detailed ? ' ' + confidenceChip(f.confidence) : ''}`;
-  return `<button class="it" data-flow="${esc(f.id)}"><b>${title}</b>${detailed ? `<span>${esc(L(f, 'biz'))}</span>` : ''}</button>`;
+  const summary = detailed ? `<span>${esc(L(f, 'biz'))}</span>` : '';
+  return `<button class="it" data-flow="${esc(f.id)}"><b>${title}</b>${summary}</button>`;
 };
 
 export const ruleItem = (i: Invariant) =>

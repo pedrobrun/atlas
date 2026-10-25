@@ -33,7 +33,8 @@ function renderBar() {
   byId('crumbs').innerHTML = path
     .map((n, i) => {
       const current = i === path.length - 1 ? 'cur' : '';
-      return `${i ? '<span class="sep">›</span>' : ''}<button data-focus="${esc(n.id)}" class="${current}">${esc(n.name)}</button>`;
+      const separator = i ? '<span class="sep">›</span>' : '';
+      return `${separator}<button data-focus="${esc(n.id)}" class="${current}">${esc(n.name)}</button>`;
     })
     .join('');
   byId('up').hidden = focus === view.root && !state.flow && !state.sel;

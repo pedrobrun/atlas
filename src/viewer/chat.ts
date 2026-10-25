@@ -82,8 +82,11 @@ function draftCard(f: Flow) {
   ].join('');
 }
 
-const litNote = (ids: string[]) =>
-  `<div class="lit">● ${ids.length} ${t('lit')} <button data-relight="${esc(ids.join(','))}">↺</button> <button data-unlight>${t('clear')}</button></div>`;
+function litNote(ids: string[]) {
+  const relight = `<button data-relight="${esc(ids.join(','))}">↺</button>`;
+  const clear = `<button data-unlight>${t('clear')}</button>`;
+  return `<div class="lit">● ${ids.length} ${t('lit')} ${relight} ${clear}</div>`;
+}
 
 /** What the viewer is looking at, so "this" in a question has a referent. */
 function aboutNow() {
