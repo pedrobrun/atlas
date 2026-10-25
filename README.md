@@ -16,7 +16,7 @@ npm install
 npm run skeleton -- <project>        # deterministic skeleton → <project>/.atlas/out/skeleton.json
 npm run build -- <project>           # merge the semantic layer, bundle the viewer → <project>/.atlas/out/atlas.html
 npm run serve -- <project> 4317      # page + chat at http://127.0.0.1:4317
-npm run typecheck                    # tsc --noEmit over src/
+npm run check                        # types, formatting, tests, private-terms scan
 ```
 
 `atlas.html` also opens straight from disk (no chat, no on-demand descriptions). The chat and the descriptions run your own Claude Code headless (`claude -p`) inside the project with read-only tools — no API key.
@@ -70,13 +70,18 @@ The config and the semantic layer are typed in `src/types.ts` (`AtlasConfig`, `S
 
 ## What's in the box
 
-| Path              | What it does                                                                                                                                                                                                                                                |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/types.ts`    | The contract: project config, semantic layer, skeleton, the data embedded in the page, and the server protocols.                                                                                                                                            |
-| `src/skeleton.ts` | Walks each source's `git ls-files`, maps files to areas → modules by the config rules, resolves imports into edges, hashes content. No LLM.                                                                                                                 |
-| `src/build.ts`    | Validates semantic ids, marks descriptions stale by hash, merges agent-written descriptions and flows, bundles the viewer with esbuild, writes one self-contained page and the agent's context file.                                                        |
-| `src/serve.ts`    | Local server: `/chat` (streams the agent's answer, which can light modules up in 3D), `/describe` (describes a module and its files on first visit, cached), `/flows` (saves a flow the chat documented).                                                   |
-| `src/viewer/`     | The viewer, bundled into the page. `tree.ts` lays out the nested boxes, `roles.ts` decides what is visible for a focus/flow/highlight, `scene.ts` draws and animates with three.js, `nav.ts` moves around, `panels.ts`, `chat.ts` and `pick.ts` are the UI. |
+| Path              | What it does                                                                                                                                                                                                                                                                                              |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/types.ts`    | The contract: project config, semantic layer, skeleton, the merged map, the data embedded in the page, and the server protocols.                                                                                                                                                                          |
+| `src/parse.ts`    | Turns outside JSON (config, request bodies, the agent's output, the local store) into those types, naming the field it can't use.                                                                                                                                                                         |
+| `src/skeleton.ts` | Walks each source's `git ls-files`, maps files to areas and modules by the config rules, resolves imports into edges, hashes content. No LLM.                                                                                                                                                             |
+| `src/merge.ts`    | Pure: joins the skeleton, the semantic layer and what the agent wrote into one map, and reports unknown ids.                                                                                                                                                                                              |
+| `src/context.ts`  | Pure: the map as markdown for the chat agent.                                                                                                                                                                                                                                                             |
+| `src/build.ts`    | The shell around those two: reads the project, bundles the viewer with esbuild, writes the page and the context file.                                                                                                                                                                                     |
+| `src/agent.ts`    | Pure: prompts and flags for Claude Code, and reading its stream-json output.                                                                                                                                                                                                                              |
+| `src/serve.ts`    | Local server: `/chat` streams the agent's answer, `/describe` describes a module and its files on first visit, `/flows` saves a flow the chat documented.                                                                                                                                                 |
+| `src/viewer/`     | The viewer, bundled into the page. `tree.ts` lays out the nested boxes, `roles.ts` decides what is visible, `scene.ts` draws and animates, `nav.ts` moves around, `cards.ts` and `html.ts` build the panels' HTML, `answer.ts` reads the agent's reply, `panels.ts`, `chat.ts` and `pick.ts` wire the UI. |
+| `test/`           | A characterization test that runs the real scripts on a made-up two-repo project, and tests for the parsers.                                                                                                                                                                                              |
 
 ## Decisions so far
 
