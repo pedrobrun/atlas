@@ -27,6 +27,6 @@ If you are unsure whether something is specific to a real project, assume it is 
 
 ## Working here
 
-- TypeScript throughout. Node runs `src/*.ts` directly (type stripping), so only erasable syntax: no `enum`, `namespace` or parameter properties; type-only imports use `import type`; local imports keep the `.ts` extension. `src/viewer` is bundled by esbuild at build time.
+- TypeScript throughout. Node runs `src/*.ts` directly (type stripping), so only erasable syntax: no `enum`, `namespace` or parameter properties; type-only imports use `import type`; local imports keep the `.ts` extension. `src/viewer` is bundled into the committed `dist/viewer.js` by `npm run bundle`; `npm run check` fails if it is stale.
 - `npm run check` must pass before committing: types, formatting (Prettier), tests and the private-terms scan. `npm run format` fixes formatting; `npm run test:update` regenerates the snapshot after an intended output change.
 - The scripts take the project folder as their first argument; see `README.md`. To try changes against a real project, point them at that project's folder. Its data stays there.

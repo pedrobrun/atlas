@@ -1,17 +1,27 @@
 import type {
+  Anchor,
   AtlasConfig,
+  Capability,
   ChatRequest,
+  Concept,
+  Decision,
+  Desc,
   DescribeRequest,
   Flow,
   FlowStep,
+  Invariant,
+  LegacyStatus,
   ModuleRule,
+  Semantic,
   SourceConfig,
 } from './types.ts';
 
 type Fields = Record<string, unknown>;
 
+export const isRecord = (v: unknown): v is Fields => typeof v === 'object' && v !== null && !Array.isArray(v);
+
 function object(v: unknown, what: string): Fields {
-  if (typeof v !== 'object' || v === null || Array.isArray(v)) throw new Error(`${what}: expected an object`);
+  if (!isRecord(v)) throw new Error(`${what}: expected an object`);
   return { ...v };
 }
 function string(v: unknown, what: string): string {
@@ -20,18 +30,29 @@ function string(v: unknown, what: string): string {
 }
 const optionalString = (v: unknown, what: string) => (v === undefined ? undefined : string(v, what));
 const nullableString = (v: unknown, what: string) => (v === null || v === undefined ? null : string(v, what));
+function english(f: Fields, keys: string[], what: string): Record<string, string | undefined> {
+  return Object.fromEntries(keys.map((k) => [`${k}_en`, optionalString(f[`${k}_en`], `${what}.${k}_en`)]));
+}
 function array<T>(v: unknown, what: string, item: (x: unknown, what: string) => T): T[] {
   if (!Array.isArray(v)) throw new Error(`${what}: expected an array`);
   return v.map((x, i) => item(x, `${what}[${i}]`));
 }
+function number(v: unknown, what: string): number {
+  if (typeof v !== 'number') throw new Error(`${what}: expected a number`);
+  return v;
+}
+const optional = <T>(v: unknown, what: string, item: (x: unknown, what: string) => T) =>
+  v === undefined ? undefined : item(v, what);
+function record<T>(v: unknown, what: string, item: (x: unknown, what: string) => T): Record<string, T> {
+  return Object.fromEntries(Object.entries(object(v, what)).map(([k, x]) => [k, item(x, `${what}.${k}`)]));
+}
+const strings = (v: unknown, what: string) => array(v, what, string);
 function oneOf<T extends string>(v: unknown, options: readonly T[], what: string): T {
   const found = options.find((o) => o === v);
   if (found === undefined) throw new Error(`${what}: expected one of ${options.join(', ')}`);
   return found;
 }
-function stringRecord(v: unknown, what: string): Record<string, string> {
-  return Object.fromEntries(Object.entries(object(v, what)).map(([k, x]) => [k, string(x, `${what}.${k}`)]));
-}
+const stringRecord = (v: unknown, what: string) => record(v, what, string);
 
 function moduleRule(v: unknown, what: string): ModuleRule {
   const r = object(v, what);
@@ -87,6 +108,9 @@ export function parseDescribeRequest(v: unknown): DescribeRequest {
   return { id: string(object(v, 'describe request').id, 'id') };
 }
 
+const confidence = (v: unknown, what: string) =>
+  oneOf(v, ['verified', 'inferred', 'generated'] as const, what);
+
 function flowStep(v: unknown, what: string): FlowStep {
   const s = object(v, what);
   return {
@@ -105,7 +129,7 @@ export function parseFlow(v: unknown, what = 'flow'): Flow {
     name_en: optionalString(f.name_en, `${what}.name_en`),
     biz: optionalString(f.biz, `${what}.biz`),
     biz_en: optionalString(f.biz_en, `${what}.biz_en`),
-    confidence: oneOf(f.confidence, ['verified', 'inferred', 'generated'] as const, `${what}.confidence`),
+    confidence: confidence(f.confidence, `${what}.confidence`),
     steps: array(f.steps, `${what}.steps`, flowStep),
   };
 }
@@ -135,5 +159,115 @@ export function parseDescription(v: unknown): { module?: DescDraft; files: Recor
     files: Object.fromEntries(
       Object.entries(files).map(([path, x]) => [path, descDraft(x, `files.${path}`)]),
     ),
+  };
+}
+
+function anchor(v: unknown, what: string): Anchor {
+  const a = object(v, what);
+  return {
+    path: string(a.path, `${what}.path`),
+    line: number(a.line, `${what}.line`),
+    note: string(a.note, `${what}.note`),
+    ...english(a, ['note'], what),
+  };
+}
+
+function desc(v: unknown, what: string): Desc {
+  const d = object(v, what);
+  return {
+    biz: optionalString(d.biz, `${what}.biz`),
+    tech: optionalString(d.tech, `${what}.tech`),
+    ...english(d, ['biz', 'tech'], what),
+    confidence: optional(d.confidence, `${what}.confidence`, confidence),
+    anchors: optional(d.anchors, `${what}.anchors`, (x, w) => array(x, w, anchor)),
+    describedHash: optionalString(d.describedHash, `${what}.describedHash`),
+  };
+}
+
+function regex(v: unknown, what: string): RegExp {
+  const source = string(v, what);
+  try {
+    return new RegExp(source);
+  } catch {
+    throw new Error(`${what}: not a valid regular expression`);
+  }
+}
+
+function capability(v: unknown, what: string): Capability {
+  const c = object(v, what);
+  return {
+    id: string(c.id, `${what}.id`),
+    name: string(c.name, `${what}.name`),
+    biz: optionalString(c.biz, `${what}.biz`),
+    tech: optionalString(c.tech, `${what}.tech`),
+    ...english(c, ['name', 'biz', 'tech'], what),
+    rules: array(c.rules, `${what}.rules`, regex),
+  };
+}
+
+function invariant(v: unknown, what: string): Invariant {
+  const i = object(v, what);
+  return {
+    id: string(i.id, `${what}.id`),
+    name: string(i.name, `${what}.name`),
+    biz: optionalString(i.biz, `${what}.biz`),
+    ...english(i, ['name', 'biz'], what),
+    guard: oneOf(i.guard, ['test', 'type', 'partial', 'none'] as const, `${what}.guard`),
+    guardPath: string(i.guardPath, `${what}.guardPath`),
+    scope: strings(i.scope, `${what}.scope`),
+    decision: optionalString(i.decision, `${what}.decision`),
+  };
+}
+
+function decision(v: unknown, what: string): Decision {
+  const d = object(v, what);
+  return {
+    id: string(d.id, `${what}.id`),
+    name: string(d.name, `${what}.name`),
+    note: optionalString(d.note, `${what}.note`),
+    ...english(d, ['name', 'note'], what),
+    path: string(d.path, `${what}.path`),
+    units: strings(d.units, `${what}.units`),
+  };
+}
+
+function concept(v: unknown, what: string): Concept {
+  const c = object(v, what);
+  return {
+    id: string(c.id, `${what}.id`),
+    name: string(c.name, `${what}.name`),
+    biz: optionalString(c.biz, `${what}.biz`),
+    ...english(c, ['name', 'biz'], what),
+    store: optionalString(c.store, `${what}.store`),
+    confidence: optional(c.confidence, `${what}.confidence`, confidence),
+    owner: strings(c.owner, `${what}.owner`),
+    writes: strings(c.writes, `${what}.writes`),
+    reads: strings(c.reads, `${what}.reads`),
+  };
+}
+
+function legacyStatus(v: unknown, what: string): LegacyStatus {
+  const l = object(v, what);
+  return {
+    label: string(l.label, `${what}.label`),
+    note: string(l.note, `${what}.note`),
+    ...english(l, ['label', 'note'], what),
+  };
+}
+
+export function parseSemantic(v: unknown): Semantic {
+  const s = object(v, 'semantic.json');
+  const list = <T>(k: string, item: (x: unknown, what: string) => T) =>
+    optional(s[k], k, (x, w) => array(x, w, item));
+  return {
+    system: optional(s.system, 'system', desc),
+    caps: list('caps', capability),
+    desc: optional(s.desc, 'desc', (x, w) => record(x, w, desc)),
+    legacy: optional(s.legacy, 'legacy', (x, w) => record(x, w, legacyStatus)),
+    legacyStatus: optional(s.legacyStatus, 'legacyStatus', stringRecord),
+    invariants: list('invariants', invariant),
+    decisions: list('decisions', decision),
+    concepts: list('concepts', concept),
+    flows: list('flows', parseFlow),
   };
 }
