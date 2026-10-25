@@ -1,0 +1,9 @@
+# A project's map lives with the project, never with the tool
+.atlas/
+
+node_modules/
+.DS_Store
+*.png
+
+# Private terms for scripts/check-private.sh — never commit
+.private-terms
