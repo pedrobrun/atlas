@@ -2,13 +2,45 @@ exports[`skeleton and build produce the pinned map for a two-repo project 1`] = 
 {
   "nodes": [
     {
+      "id": "ext:stripe",
+      "files": [],
+      "loc": 0,
+      "kind": "external",
+      "name": "Stripe",
+      "system": "payments"
+    },
+    {
+      "id": "ext:warehouse",
+      "files": [],
+      "loc": 0,
+      "kind": "external",
+      "name": "Warehouse API",
+      "system": "api"
+    },
+    {
+      "id": "ext:ledger",
+      "files": [],
+      "loc": 0,
+      "kind": "external",
+      "name": "Ledger",
+      "system": "api"
+    },
+    {
+      "id": "ext:mail",
+      "files": [],
+      "loc": 0,
+      "kind": "external",
+      "name": "Mail",
+      "system": "email"
+    },
+    {
       "id": "repo:web",
       "files": [],
       "loc": 0,
       "kind": "repo",
       "name": "web",
       "role": null,
-      "sha": "340d5ff",
+      "sha": "b4d9870",
       "branch": "main"
     },
     {
@@ -58,7 +90,7 @@ exports[`skeleton and build produce the pinned map for a two-repo project 1`] = 
     {
       "id": "web/lib",
       "files": [],
-      "loc": 2,
+      "loc": 6,
       "kind": "area",
       "name": "lib",
       "parent": "repo:web"
@@ -75,6 +107,20 @@ exports[`skeleton and build produce the pinned map for a two-repo project 1`] = 
       "loc": 2,
       "kind": "module",
       "name": "cart",
+      "parent": "web/lib"
+    },
+    {
+      "id": "web/lib/stock",
+      "files": [
+        {
+          "path": "web/src/lib/stock.ts",
+          "hash": "c1db3e8b",
+          "loc": 4
+        }
+      ],
+      "loc": 4,
+      "kind": "module",
+      "name": "stock",
       "parent": "web/lib"
     },
     {
@@ -106,13 +152,13 @@ exports[`skeleton and build produce the pinned map for a two-repo project 1`] = 
       "kind": "repo",
       "name": "billing-service",
       "role": "legacy",
-      "sha": "bd56157",
+      "sha": "7ce10b3",
       "branch": "main"
     },
     {
       "id": "billing/core",
       "files": [],
-      "loc": 11,
+      "loc": 15,
       "kind": "area",
       "name": "@acme/billing",
       "parent": "repo:billing"
@@ -151,6 +197,20 @@ exports[`skeleton and build produce the pinned map for a two-repo project 1`] = 
       "parent": "billing/core"
     },
     {
+      "id": "billing/core/payouts",
+      "files": [
+        {
+          "path": "billing/src/payouts.ts",
+          "hash": "1a04752e",
+          "loc": 4
+        }
+      ],
+      "loc": 4,
+      "kind": "module",
+      "name": "payouts",
+      "parent": "billing/core"
+    },
+    {
       "id": "billing/core/tax",
       "files": [
         {
@@ -185,6 +245,20 @@ exports[`skeleton and build produce the pinned map for a two-repo project 1`] = 
       "w": 1
     },
     {
+      "from": "web/lib/stock",
+      "to": "ext:warehouse",
+      "kind": "calls",
+      "w": 1,
+      "at": "web/src/lib/stock.ts:1"
+    },
+    {
+      "from": "web/lib/stock",
+      "to": "ext:ledger",
+      "kind": "calls",
+      "w": 1,
+      "at": "web/src/lib/stock.ts:3"
+    },
+    {
       "from": "billing/core/index",
       "to": "billing/core/invoices",
       "kind": "uses",
@@ -201,13 +275,20 @@ exports[`skeleton and build produce the pinned map for a two-repo project 1`] = 
       "to": "billing/core/tax",
       "kind": "uses",
       "w": 1
+    },
+    {
+      "from": "billing/core/payouts",
+      "to": "ext:stripe",
+      "kind": "calls",
+      "w": 1,
+      "at": "billing/src/payouts.ts:1"
     }
   ]
 }
 `;
 
 exports[`skeleton and build produce the pinned map for a two-repo project 2`] = `
-"# Atlas — Acme\\n\\nGenerated <time>. Paths are relative to the project root (the cwd).\\n\\nUm app web e um serviço de cobrança.\\nA shop.\\n\\n## Sources (repos)\\n- repo:web: web @ main 340d5ff \\n- repo:billing: billing-service @ main bd56157 (legacy) \\n\\n## Capabilities (semantic grouping of modules)\\n- cap:buy — Buying: \\n  modules: web/api/orders, web/pages/home, web/lib/cart, web/ui/button\\n- cap:bill — Cobrar: \\n  modules: billing/core/index, billing/core/invoices, billing/core/tax\\n\\n## Modules\\nFormat: id · directory · lines · capability · status. Then description, evidence, dependencies (weight = import count).\\n\\n### web/api/orders\\nweb/src/app/api/orders · 4 lines · Buying\\nPOST que chama a cobrança. — Takes orders. [verified]\\nevidence: web/src/app/api/orders/route.ts:3 (cria a fatura)\\nuses: web/lib/cart (1), billing/core/invoices (1)\\nfiles: route.ts\\n\\n### web/pages/home\\nweb/src/app · 3 lines · Buying\\nuses: web/ui/button (1)\\nfiles: page.tsx\\n\\n### web/lib/cart\\nweb/src/lib · 2 lines · Buying · STALE description\\n — The cart. [generated]\\nused by: web/api/orders (1)\\nfiles: cart.ts\\n\\n### web/ui/button\\nweb/src/ui · 2 lines · Buying\\nused by: web/pages/home (1)\\nfiles: button.tsx\\n\\n### billing/core/index\\nbilling/src · 3 lines · Cobrar\\nuses: billing/core/invoices (1), billing/core/tax (1)\\nfiles: index.ts\\n\\n### billing/core/invoices\\nbilling/src/invoices · 6 lines · Cobrar · STALE description\\nGera faturas.  [inferred]\\nuses: billing/core/tax (1)\\nused by: web/api/orders (1), billing/core/index (1)\\nfiles: index.ts, pdf.ts\\n\\n### billing/core/tax\\nbilling/src · 2 lines · Cobrar · legacy:extracted\\nused by: billing/core/index (1), billing/core/invoices (1)\\nfiles: tax.ts\\n\\n## Flows\\n### flow:checkout — Checkout [verified]\\n1. web/api/orders — Takes the order. (web/src/app/api/orders/route.ts:3)\\n2. billing/core/invoices — Makes the invoice.\\n\\n### flow:browse — Browse [inferred]\\n1. web/pages/home — Opens home.\\n\\n## Invariants\\n- Tax in one place — guard: none (docs/tax.md) — scope: billing/core/tax\\n\\n## Decisions\\n- 0001 Cobrança separada — docs/0001.md\\n\\n## Legacy statuses\\n- extracted: Foi para outro lugar."
+"# Atlas — Acme\\n\\nGenerated <time>. Paths are relative to the project root (the cwd).\\n\\nUm app web e um serviço de cobrança.\\nA shop.\\n\\n## Sources (repos)\\n- repo:web: web @ main b4d9870 \\n- repo:billing: billing-service @ main 7ce10b3 (legacy) \\n\\n## Capabilities (semantic grouping of modules)\\n- cap:buy — Buying: \\n  modules: web/api/orders, web/pages/home, web/lib/cart, web/lib/stock, web/ui/button\\n- cap:bill — Cobrar: \\n  modules: billing/core/index, billing/core/invoices, billing/core/payouts, billing/core/tax\\n\\n## Modules\\nFormat: id · directory · lines · capability · status. Then description, evidence, dependencies (weight = import count).\\n\\n### web/api/orders\\nweb/src/app/api/orders · 4 lines · Buying\\nPOST que chama a cobrança. — Takes orders. [verified]\\nevidence: web/src/app/api/orders/route.ts:3 (cria a fatura)\\nuses: web/lib/cart (1), billing/core/invoices (1)\\nfiles: route.ts\\n\\n### web/pages/home\\nweb/src/app · 3 lines · Buying\\nuses: web/ui/button (1)\\nfiles: page.tsx\\n\\n### web/lib/cart\\nweb/src/lib · 2 lines · Buying · STALE description\\n — The cart. [generated]\\nused by: web/api/orders (1)\\nfiles: cart.ts\\n\\n### web/lib/stock\\nweb/src/lib · 4 lines · Buying\\nuses: ext:warehouse (1), ext:ledger (1)\\nfiles: stock.ts\\n\\n### web/ui/button\\nweb/src/ui · 2 lines · Buying\\nused by: web/pages/home (1)\\nfiles: button.tsx\\n\\n### billing/core/index\\nbilling/src · 3 lines · Cobrar\\nuses: billing/core/invoices (1), billing/core/tax (1)\\nfiles: index.ts\\n\\n### billing/core/invoices\\nbilling/src/invoices · 6 lines · Cobrar · STALE description\\nGera faturas.  [inferred]\\nuses: billing/core/tax (1)\\nused by: web/api/orders (1), billing/core/index (1)\\nfiles: index.ts, pdf.ts\\n\\n### billing/core/payouts\\nbilling/src · 4 lines · Cobrar\\nuses: ext:stripe (1)\\nfiles: payouts.ts\\n\\n### billing/core/tax\\nbilling/src · 2 lines · Cobrar · legacy:extracted\\nused by: billing/core/index (1), billing/core/invoices (1)\\nfiles: tax.ts\\n\\n## External systems\\nSystems outside the codebase. Refer to them by id like modules.\\n\\n### ext:stripe · Stripe · payments\\ncalled from: billing/core/payouts (billing/src/payouts.ts:1)\\n\\n### ext:warehouse · Warehouse API · api\\ncalled from: web/lib/stock (web/src/lib/stock.ts:1)\\n\\n### ext:ledger · Ledger · api\\ncalled from: web/lib/stock (web/src/lib/stock.ts:3)\\n\\n### ext:mail · Mail · email\\ncalled from: nowhere found\\n\\n## Flows\\n### flow:checkout — Checkout [verified]\\n1. web/api/orders — Takes the order. (web/src/app/api/orders/route.ts:3)\\n2. billing/core/invoices — Makes the invoice.\\n\\n### flow:browse — Browse [inferred]\\n1. web/pages/home — Opens home.\\n\\n## Invariants\\n- Tax in one place — guard: none (docs/tax.md) — scope: billing/core/tax\\n\\n## Decisions\\n- 0001 Cobrança separada — docs/0001.md\\n\\n## Legacy statuses\\n- extracted: Foi para outro lugar."
 `;
 
 exports[`skeleton and build produce the pinned map for a two-repo project 3`] = `
@@ -239,13 +320,49 @@ exports[`skeleton and build produce the pinned map for a two-repo project 3`] = 
   },
   "nodes": [
     {
+      "id": "ext:stripe",
+      "files": [],
+      "loc": 0,
+      "kind": "external",
+      "name": "Stripe",
+      "system": "payments",
+      "hash": "da39a3ee"
+    },
+    {
+      "id": "ext:warehouse",
+      "files": [],
+      "loc": 0,
+      "kind": "external",
+      "name": "Warehouse API",
+      "system": "api",
+      "hash": "da39a3ee"
+    },
+    {
+      "id": "ext:ledger",
+      "files": [],
+      "loc": 0,
+      "kind": "external",
+      "name": "Ledger",
+      "system": "api",
+      "hash": "da39a3ee"
+    },
+    {
+      "id": "ext:mail",
+      "files": [],
+      "loc": 0,
+      "kind": "external",
+      "name": "Mail",
+      "system": "email",
+      "hash": "da39a3ee"
+    },
+    {
       "id": "repo:web",
       "files": [],
       "loc": 0,
       "kind": "repo",
       "name": "web",
       "role": null,
-      "sha": "340d5ff",
+      "sha": "b4d9870",
       "branch": "main",
       "hash": "da39a3ee"
     },
@@ -317,7 +434,7 @@ exports[`skeleton and build produce the pinned map for a two-repo project 3`] = 
     {
       "id": "web/lib",
       "files": [],
-      "loc": 2,
+      "loc": 6,
       "kind": "area",
       "name": "lib",
       "parent": "repo:web",
@@ -351,6 +468,22 @@ exports[`skeleton and build produce the pinned map for a two-repo project 3`] = 
       }
     },
     {
+      "id": "web/lib/stock",
+      "files": [
+        {
+          "path": "web/src/lib/stock.ts",
+          "hash": "c1db3e8b",
+          "loc": 4
+        }
+      ],
+      "loc": 4,
+      "kind": "module",
+      "name": "stock",
+      "parent": "web/lib",
+      "hash": "a0422059",
+      "cap": "buy"
+    },
+    {
       "id": "web/ui",
       "files": [],
       "loc": 2,
@@ -382,14 +515,14 @@ exports[`skeleton and build produce the pinned map for a two-repo project 3`] = 
       "kind": "repo",
       "name": "billing-service",
       "role": "legacy",
-      "sha": "bd56157",
+      "sha": "7ce10b3",
       "branch": "main",
       "hash": "da39a3ee"
     },
     {
       "id": "billing/core",
       "files": [],
-      "loc": 11,
+      "loc": 15,
       "kind": "area",
       "name": "@acme/billing",
       "parent": "repo:billing",
@@ -438,6 +571,22 @@ exports[`skeleton and build produce the pinned map for a two-repo project 3`] = 
       }
     },
     {
+      "id": "billing/core/payouts",
+      "files": [
+        {
+          "path": "billing/src/payouts.ts",
+          "hash": "1a04752e",
+          "loc": 4
+        }
+      ],
+      "loc": 4,
+      "kind": "module",
+      "name": "payouts",
+      "parent": "billing/core",
+      "hash": "1401a4e1",
+      "cap": "bill"
+    },
+    {
       "id": "billing/core/tax",
       "files": [
         {
@@ -475,6 +624,20 @@ exports[`skeleton and build produce the pinned map for a two-repo project 3`] = 
       "w": 1
     },
     {
+      "from": "web/lib/stock",
+      "to": "ext:warehouse",
+      "kind": "calls",
+      "w": 1,
+      "at": "web/src/lib/stock.ts:1"
+    },
+    {
+      "from": "web/lib/stock",
+      "to": "ext:ledger",
+      "kind": "calls",
+      "w": 1,
+      "at": "web/src/lib/stock.ts:3"
+    },
+    {
       "from": "billing/core/index",
       "to": "billing/core/invoices",
       "kind": "uses",
@@ -491,6 +654,13 @@ exports[`skeleton and build produce the pinned map for a two-repo project 3`] = 
       "to": "billing/core/tax",
       "kind": "uses",
       "w": 1
+    },
+    {
+      "from": "billing/core/payouts",
+      "to": "ext:stripe",
+      "kind": "calls",
+      "w": 1,
+      "at": "billing/src/payouts.ts:1"
     }
   ],
   "caps": [

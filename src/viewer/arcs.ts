@@ -1,16 +1,17 @@
 import * as THREE from 'three';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
-import { D } from './data.ts';
+import { D, systemColor } from './data.ts';
 import { esc } from './dom.ts';
 import { state } from './state.ts';
 import type { TreeNode } from './tree.ts';
-import { modulesUnder, view } from './tree.ts';
+import { inside, modulesUnder, view } from './tree.ts';
 import { stepModules } from './roles.ts';
 import { onFrame, scene } from './scene.ts';
 
 const USES = 0x5b50e8;
 const USED_BY = 0x14a08e;
 const FLOW_COLOR = 0xe5487f;
+const CALLS = 0xd9822b;
 
 const group = new THREE.Group();
 scene.add(group);
@@ -42,14 +43,24 @@ function viewScale() {
   return Math.min(1.2, Math.max(0.22, Math.max(f.w || 40, f.d || 40) / 14));
 }
 
-function arc(from: THREE.Vector3, to: THREE.Vector3, color: number, weight: number, label: string | null) {
+function arc(
+  from: THREE.Vector3,
+  to: THREE.Vector3,
+  color: number,
+  weight: number,
+  label: string | null,
+  quiet = false,
+) {
   const scale = viewScale();
   const thickness = Math.log2(1 + weight);
   const mid = from.clone().lerp(to, 0.5);
-  mid.y = Math.max(from.y, to.y) + (0.6 + from.distanceTo(to) * 0.28) * Math.max(scale, 0.5);
+  const rise = quiet ? 0.1 : 0.28;
+  mid.y = Math.max(from.y, to.y) + (0.6 + from.distanceTo(to) * rise) * Math.max(scale, 0.5);
   const curve = new THREE.QuadraticBezierCurve3(from, mid, to);
   const tube = new THREE.TubeGeometry(curve, 48, (0.02 + thickness * 0.02) * scale, 6, false);
-  group.add(new THREE.Mesh(tube, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.75 })));
+  const opacity = quiet ? 0.22 : 0.75;
+  group.add(new THREE.Mesh(tube, new THREE.MeshBasicMaterial({ color, transparent: true, opacity })));
+  if (quiet) return;
   const pulse = new THREE.Mesh(
     new THREE.SphereGeometry((0.07 + thickness * 0.025) * scale, 12, 10),
     new THREE.MeshBasicMaterial({ color }),
@@ -77,16 +88,38 @@ function drawFlowPath() {
 
 function arcSource() {
   const candidates = [view.hovered, view.T[state.sel ?? ''], view.T[state.focus]];
-  return candidates.find((n) => n?.kind === 'module') ?? null;
+  return candidates.find((n) => n?.kind === 'module' || n?.kind === 'external') ?? null;
+}
+
+function drawSystemLinks(scope: TreeNode) {
+  const links = new Map<string, { from: TreeNode; to: TreeNode; weight: number }>();
+  for (const e of D.edges) {
+    if (e.kind !== 'calls' || !inside(e.from, scope)) continue;
+    const from =
+      scope === view.root
+        ? view.root.children.find((c) => modulesUnder(c).includes(e.from))
+        : visibleProxy(e.from);
+    const to = view.T[e.to];
+    if (!from || !to || from.kind === 'root') continue;
+    const key = `${from.id}|${to.id}`;
+    const link = links.get(key) ?? { from, to, weight: 0 };
+    link.weight += e.w;
+    links.set(key, link);
+  }
+  for (const l of links.values()) {
+    const color = l.to.kind === 'external' ? systemColor(l.to.ref) : CALLS;
+    arc(topOf(l.from), topOf(l.to), color, l.weight, null, true);
+  }
 }
 
 export function drawArcs() {
   clear();
   if (state.flow) return drawFlowPath();
   const src = arcSource();
+  if (!src && !state.hl?.length) return drawSystemLinks(view.T[state.focus] ?? view.root);
   if (!src) return;
   const mine = new Set(modulesUnder(src));
-  type Link = { weight: number; modules: Set<string> };
+  type Link = { weight: number; modules: Set<string>; calls: boolean };
   const outgoing = new Map<TreeNode, Link>();
   const incoming = new Map<TreeNode, Link>();
   for (const e of D.edges) {
@@ -96,14 +129,17 @@ export function drawArcs() {
     const target = visibleProxy(other);
     if (!target || target === src) continue;
     const links = out ? outgoing : incoming;
-    const link = links.get(target) ?? { weight: 0, modules: new Set<string>() };
+    const link = links.get(target) ?? { weight: 0, modules: new Set<string>(), calls: false };
     link.weight += e.w;
+    link.calls ||= e.kind === 'calls';
     link.modules.add(other);
     links.set(target, link);
   }
   const tag = (n: TreeNode, l: Link) =>
-    n.kind === 'module' ? null : `${n.name}${l.modules.size > 1 ? ` · ${l.modules.size}` : ''}`;
+    n.kind === 'module' || n.kind === 'external'
+      ? null
+      : `${n.name}${l.modules.size > 1 ? ` · ${l.modules.size}` : ''}`;
   const here = topOf(src);
-  for (const [n, l] of outgoing) arc(here, topOf(n), USES, l.weight, tag(n, l));
-  for (const [n, l] of incoming) arc(topOf(n), here, USED_BY, l.weight, tag(n, l));
+  for (const [n, l] of outgoing) arc(here, topOf(n), l.calls ? CALLS : USES, l.weight, tag(n, l));
+  for (const [n, l] of incoming) arc(topOf(n), here, l.calls ? CALLS : USED_BY, l.weight, tag(n, l));
 }

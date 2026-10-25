@@ -7,6 +7,7 @@ import type {
   Decision,
   Desc,
   DescribeRequest,
+  ExternalConfig,
   Flow,
   FlowStep,
   Invariant,
@@ -64,6 +65,18 @@ function moduleRule(v: unknown, what: string): ModuleRule {
   };
 }
 
+function external(v: unknown, what: string): ExternalConfig {
+  const e = object(v, what);
+  return {
+    id: string(e.id, `${what}.id`),
+    name: string(e.name, `${what}.name`),
+    kind: optionalString(e.kind, `${what}.kind`),
+    packages: optional(e.packages, `${what}.packages`, strings),
+    env: optional(e.env, `${what}.env`, strings),
+    code: optional(e.code, `${what}.code`, (x, w) => array(x, w, (r, rw) => regex(r, rw).source)),
+  };
+}
+
 function source(v: unknown, what: string): SourceConfig {
   const s = object(v, what);
   return {
@@ -90,6 +103,7 @@ export function parseConfig(v: unknown): AtlasConfig {
     name: string(c.name, 'name'),
     language: c.language === undefined ? undefined : oneOf(c.language, ['en', 'pt'] as const, 'language'),
     sources: array(c.sources, 'sources', source),
+    externals: optional(c.externals, 'externals', (x, w) => array(x, w, external)),
     chat: chat && { suggestions: suggestions && { en: list('en'), pt: list('pt') } },
   };
 }

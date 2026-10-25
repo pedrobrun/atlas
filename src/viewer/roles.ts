@@ -1,5 +1,5 @@
 import type { Anim, TreeNode } from './tree.ts';
-import { ancestors, modulesUnder, view } from './tree.ts';
+import { ancestors, linkedTo, modulesUnder, view } from './tree.ts';
 import { FLOW, modules } from './data.ts';
 import { state } from './state.ts';
 
@@ -16,6 +16,11 @@ export const ROLE = {
   ghost: { fill: 0.07, edge: 0.08, sy: 1 },
 } satisfies Record<string, Anim>;
 export type Role = keyof typeof ROLE;
+
+const DIMMABLE: Partial<Record<TreeNode['kind'], Role[]>> = {
+  module: ['closed'],
+  external: ['closed', 'context'],
+};
 
 export const PICKABLE = new Set<Role>(['closed', 'context', 'ghost', 'shell', 'far', 'district', 'dim']);
 
@@ -50,7 +55,7 @@ export function computeRoles(): Record<string, Role> {
       if (c.kind === 'group') {
         roles[c.id] = 'plate';
         openDeep(c);
-      } else if (c.kind === 'module') roles[c.id] = 'closed';
+      } else if (c.kind === 'module' || c.kind === 'external') roles[c.id] = 'closed';
       else {
         roles[c.id] = 'district';
         openDeep(c);
@@ -59,9 +64,10 @@ export function computeRoles(): Record<string, Role> {
   };
   const dimUnlit = () => {
     const lit = litSet();
-    if (lit.size)
-      for (const id in T)
-        if (T[id].kind === 'module' && !lit.has(id) && roles[id] === 'closed') roles[id] = 'dim';
+    if (!lit.size) return;
+    for (const id in T) {
+      if (!lit.has(id) && DIMMABLE[T[id].kind]?.includes(roles[id])) roles[id] = 'dim';
+    }
   };
 
   if (state.flow) {
@@ -86,6 +92,10 @@ export function computeRoles(): Record<string, Role> {
     if (a.kind !== 'root') roles[a.id] = a.kind === 'group' ? 'context' : 'shell';
     for (const s of a.children)
       if (roles[s.id] === 'hidden') roles[s.id] = faint && a !== root ? 'far' : 'context';
+  }
+  for (const c of root.children) {
+    if (c.kind !== 'external') continue;
+    roles[c.id] = linkedTo(c, f) ? 'closed' : 'far';
   }
   dimUnlit();
   return roles;

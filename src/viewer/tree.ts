@@ -1,7 +1,7 @@
 import type * as THREE from 'three';
 import type { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import type { FileEntry, MapNode, PageData } from '../types.ts';
-import { CAP_COLOR, D, kids, modules, N, repoName, repoOf, short, SOURCES } from './data.ts';
+import { CAP_COLOR, D, externals, kids, modules, N, repoName, repoOf, short, SOURCES } from './data.ts';
 import { L } from './i18n.ts';
 import type { Role } from './roles.ts';
 import { state } from './state.ts';
@@ -49,12 +49,15 @@ export type TreeNode = Box &
     | { kind: 'group'; repo: string }
     | { kind: 'repo' | 'area' | 'module'; repo: string; ref: MapNode }
     | { kind: 'file'; repo: string; file: FileEntry }
+    | { kind: 'external'; ref: MapNode; home: { x: number; z: number } }
   );
 export type Kind = TreeNode['kind'];
 export type RootNode = Extract<TreeNode, { kind: 'root' }>;
 
 interface View {
   root: RootNode;
+  /** Distance from the centre to the outermost thing drawn, external systems included. */
+  reach: number;
   T: Record<string, TreeNode>;
   roles: Record<string, Role>;
   hovered: TreeNode | null;
@@ -81,6 +84,7 @@ export const view: View = {
   T: {},
   roles: {},
   hovered: null,
+  reach: 0,
 };
 
 const GENERIC = /^(route|page|layout|index|loading|react|types)\.(t|j)sx?$/;
@@ -135,10 +139,84 @@ export function buildTree() {
   })(root, null);
   layout(root);
   place(root, 0, 0, 0);
+  view.reach = Math.hypot(root.w, root.d) / 2;
+  ring(
+    root,
+    externals.map((e) => box({ kind: 'external', id: e.id, name: e.name, ref: e, home: { x: 0, z: 0 } })),
+  );
   view.root = root;
 }
 
+const SYSTEM = { size: 2.6, height: 1.8, spacing: 7, margin: 5 };
+const TURN = 2 * Math.PI;
+const angleGap = (a: number, b: number) => Math.abs(((a - b + 3 * Math.PI) % TURN) - Math.PI);
+
+type System = Extract<TreeNode, { kind: 'external' }>;
+
+function angleToward(from: { x: number; z: number }, points: { x: number; z: number }[]) {
+  if (!points.length) return null;
+  const x = points.reduce((sum, p) => sum + p.x, 0) / points.length - from.x;
+  const z = points.reduce((sum, p) => sum + p.z, 0) / points.length - from.z;
+  return Math.atan2(z, x);
+}
+
+function around(center: { x: number; z: number }, radius: number, wanted: { s: System; angle: number }[]) {
+  const sorted = [...wanted].sort((a, b) => a.angle - b.angle);
+  const slot = TURN / sorted.length;
+  const misfit = (offset: number) =>
+    sorted.reduce((sum, w, i) => sum + angleGap(offset + i * slot, w.angle), 0);
+  const offsets = Array.from({ length: 72 }, (_, i) => (i / 72) * TURN);
+  const offset = offsets.reduce((best, o) => (misfit(o) < misfit(best) ? o : best));
+  return sorted.map(({ s }, i) => ({
+    s,
+    x: center.x + Math.cos(offset + i * slot) * radius,
+    z: center.z + Math.sin(offset + i * slot) * radius,
+  }));
+}
+
+const callersOf = (s: System) => D.edges.filter((e) => e.to === s.id).flatMap((e) => view.T[e.from] ?? []);
+
+function ring(root: RootNode, systems: System[]) {
+  if (!systems.length) return;
+  const radius = Math.max(
+    Math.hypot(root.w, root.d) / 2 + SYSTEM.margin,
+    (systems.length * SYSTEM.spacing) / TURN,
+  );
+  const centre = { x: 0, z: 0 };
+  const wanted = systems.map((s, i) => ({
+    s,
+    angle: angleToward(centre, callersOf(s)) ?? (i / systems.length) * TURN,
+  }));
+  for (const { s, x, z } of around(centre, radius, wanted)) {
+    s.w = s.d = SYSTEM.size;
+    s.h = s.stack = SYSTEM.height;
+    s.home = { x, z };
+    s.x = x;
+    s.z = z;
+    s.parent = root;
+    root.children.push(s);
+    view.T[s.id] = s;
+  }
+  view.reach = radius + SYSTEM.size;
+}
+
+export const linkedTo = (s: TreeNode, area: TreeNode) =>
+  D.edges.some((e) => e.to === s.id && inside(e.from, area));
+
+/** Brings the systems the focused box talks to next to it; the rest go back to the ring. */
+export function dock(focus: TreeNode) {
+  const systems = view.root.children.filter((c): c is System => c.kind === 'external');
+  for (const s of systems) Object.assign(s, s.home);
+  if (focus === view.root) return;
+  const near = systems.filter((s) => linkedTo(s, focus));
+  if (!near.length) return;
+  const radius = Math.hypot(focus.w, focus.d) / 2 + SYSTEM.size;
+  const wanted = near.map((s) => ({ s, angle: angleToward(focus, [s.home]) ?? 0 }));
+  for (const { s, x, z } of around(focus, radius, wanted)) Object.assign(s, { x, z });
+}
+
 const GAP: Record<Kind, number> = {
+  external: 0,
   root: 2.4,
   cap: 0.6,
   group: 0.32,
@@ -148,6 +226,7 @@ const GAP: Record<Kind, number> = {
   file: 0,
 };
 const PAD: Record<Kind, number> = {
+  external: 0,
   root: 0,
   cap: 0.8,
   group: 0.3,
@@ -221,7 +300,7 @@ export function ancestors(n: TreeNode) {
   return up;
 }
 export const modulesUnder = (n: TreeNode): string[] =>
-  n.kind === 'module' ? [n.id] : n.children.flatMap(modulesUnder);
+  n.kind === 'module' || n.kind === 'external' ? [n.id] : n.children.flatMap(modulesUnder);
 export const countLoc = (n: TreeNode): number =>
   n.kind === 'file' ? n.file.loc : n.children.reduce((sum, c) => sum + countLoc(c), 0);
 export function inside(id: string, container: TreeNode) {

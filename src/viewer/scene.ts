@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DObject, CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import { isStale } from '../types.ts';
-import { LEGACY_COLOR, REPO_COLOR } from './data.ts';
+import { LEGACY_COLOR, REPO_COLOR, systemColor } from './data.ts';
 import { byId } from './dom.ts';
 import { state } from './state.ts';
 import type { Gfx, Mark, TreeNode } from './tree.ts';
@@ -56,6 +56,9 @@ scene.add(grid);
 const unitBox = new THREE.BoxGeometry(1, 1, 1);
 unitBox.translate(0, 0.5, 0);
 const unitEdges = new THREE.EdgesGeometry(unitBox);
+const unitDrum = new THREE.CylinderGeometry(0.5, 0.5, 1, 40);
+unitDrum.translate(0, 0.5, 0);
+const drumEdges = new THREE.EdgesGeometry(unitDrum, 30);
 const staleDot = new THREE.SphereGeometry(0.16, 16, 12);
 let world = new THREE.Group();
 scene.add(world);
@@ -64,6 +67,7 @@ const lighten = (hex: number, k: number) => new THREE.Color(hex).lerp(new THREE.
 function colorFor(n: TreeNode) {
   if (n.kind === 'cap') return new THREE.Color(n.color);
   if (n.kind === 'root') return new THREE.Color(0x888888);
+  if (n.kind === 'external') return new THREE.Color(systemColor(n.ref));
   const k = { group: 0.72, repo: 0.5, area: 0.35, module: 0.08, file: 0.45 }[n.kind];
   return lighten(REPO_COLOR[n.repo] ?? 0x888888, k);
 }
@@ -81,7 +85,8 @@ function makeLabel() {
 }
 
 function draw(n: TreeNode): Gfx {
-  const mesh = new THREE.Mesh(unitBox, transparent(colorFor(n), { roughness: 0.75, metalness: 0.02 }));
+  const shape = n.kind === 'external' ? unitDrum : unitBox;
+  const mesh = new THREE.Mesh(shape, transparent(colorFor(n), { roughness: 0.75, metalness: 0.02 }));
   mesh.castShadow = n.kind !== 'group';
   mesh.receiveShadow = true;
   mesh.position.set(n.x, n.y, n.z);
@@ -89,7 +94,7 @@ function draw(n: TreeNode): Gfx {
   mesh.visible = false;
   mesh.userData.node = n;
   const edges = new THREE.LineSegments(
-    unitEdges,
+    n.kind === 'external' ? drumEdges : unitEdges,
     new THREE.LineBasicMaterial({ color: dark ? 0xdedad2 : 0x2a2824, transparent: true, opacity: 0 }),
   );
   mesh.add(edges);
@@ -152,7 +157,12 @@ export function frameFocus() {
   }
   const n = T[state.focus] || root;
   const isRoot = n === root;
-  const size = isRoot ? Math.hypot(n.w, n.d) * 0.8 : Math.max(n.w, n.d, n.h * 1.5);
+  const docked = isRoot
+    ? []
+    : root.children.filter((c) => c.kind === 'external' && view.roles[c.id] === 'closed');
+  const reach = Math.max(0, ...docked.map((c) => 2 * Math.hypot(c.x - n.x, c.z - n.z) + c.w));
+  const systems = root.children.some((c) => c.kind === 'external');
+  const size = isRoot ? view.reach * (systems ? 2 : 1.6) : Math.max(n.w, n.d, n.h * 1.5, reach * 0.9);
   flyTo(new THREE.Vector3(n.x, n.y + (isRoot ? 0 : n.h * 0.35), n.z), size * (isRoot ? 1.2 : 1.55) + 3);
 }
 export function introCamera() {
@@ -191,7 +201,10 @@ function ease(n: TreeNode, gfx: Gfx, k: number, t: number) {
   const lift = (n === view.hovered ? 0.12 : 0) + (n.mark === 'step' ? 0.6 + Math.sin(t * 2.5) * 0.12 : 0);
   const top = n.y + lift + n.h * cur.sy;
   mesh.visible = true;
+  mesh.position.x += (n.x - mesh.position.x) * k;
+  mesh.position.z += (n.z - mesh.position.z) * k;
   mesh.position.y = n.y + lift;
+  const { x, z } = mesh.position;
   mesh.scale.y = Math.max(0.001, n.h * cur.sy);
   mesh.material.opacity = cur.fill;
   mesh.material.depthWrite = cur.fill > 0.9;
@@ -200,16 +213,16 @@ function ease(n: TreeNode, gfx: Gfx, k: number, t: number) {
   if (legacyMark) {
     legacyMark.visible = cur.fill > 0.5;
     legacyMark.material.opacity = cur.fill;
-    legacyMark.position.set(n.x, top, n.z);
+    legacyMark.position.set(x, top, z);
     legacyMark.scale.set(n.w * 0.98, 0.06, n.d * 0.98);
   }
   if (staleMark) {
     staleMark.visible = cur.fill > 0.5;
     staleMark.material.opacity = cur.fill;
     staleMark.scale.setScalar(Math.min(1, Math.max(n.w, 0.6)));
-    staleMark.position.set(n.x + n.w / 2 - 0.15, top + 0.3 + Math.sin(t * 3) * 0.07, n.z - n.d / 2 + 0.15);
+    staleMark.position.set(x + n.w / 2 - 0.15, top + 0.3 + Math.sin(t * 3) * 0.07, z - n.d / 2 + 0.15);
   }
-  label?.position.set(n.x, top + 0.2, view.roles[n.id] === 'district' ? n.z - n.d / 2 : n.z);
+  label?.position.set(x, top + 0.2, view.roles[n.id] === 'district' ? z - n.d / 2 : z);
 }
 
 /** Fraction of the way still to go after one second of easing toward a target. */

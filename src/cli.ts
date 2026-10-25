@@ -105,6 +105,9 @@ async function status(start: string) {
     described: modules.filter((n) => n.desc).length,
     stale: modules.filter(isStale).map((n) => n.id),
     withoutCapability: modulesWithoutCapability,
+    systemsNeverCalled: atlas.nodes
+      .filter((n) => n.kind === 'external' && !atlas.edges.some((e) => e.to === n.id))
+      .map((n) => n.id),
     unknownIds,
   };
   console.log(JSON.stringify(report, null, 2));

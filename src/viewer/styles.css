@@ -492,6 +492,17 @@ select {
   color: #fff;
   border-color: transparent;
 }
+.call {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.lab.ext .n {
+  border-radius: 999px;
+  border-color: #d9822b;
+  padding: 2px 9px;
+}
 .lab.arc .n {
   font-size: 10.5px;
   font-weight: 520;

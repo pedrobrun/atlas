@@ -26,11 +26,26 @@ export interface SourceConfig {
   modules: ModuleRule[];
 }
 
+/** A system outside the codebase (database, SaaS, queue, AI API) and how to spot code that talks to it. */
+export interface ExternalConfig {
+  id: string;
+  name: string;
+  /** e.g. "database", "payments", "queue"; shown in the viewer. */
+  kind?: string;
+  /** Import specifiers; "@aws-sdk/*" matches every subpath. */
+  packages?: string[];
+  /** Environment variable prefixes, e.g. "STRIPE_". */
+  env?: string[];
+  /** Regexes over source text, for systems reached without an SDK. */
+  code?: string[];
+}
+
 export interface AtlasConfig {
   name: string;
   /** Language the viewer opens in. */
   language?: Lang;
   sources: SourceConfig[];
+  externals?: ExternalConfig[];
   chat?: { suggestions?: Partial<Record<Lang, string[]>> };
 }
 
@@ -66,7 +81,7 @@ export interface FileEntry {
   desc?: Desc;
 }
 
-export type NodeKind = 'repo' | 'area' | 'module';
+export type NodeKind = 'repo' | 'area' | 'module' | 'external';
 
 export interface SkNode {
   id: string;
@@ -78,13 +93,17 @@ export interface SkNode {
   sha?: string;
   branch?: string;
   role?: string | null;
+  /** For an external node, what kind of system it is. */
+  system?: string;
 }
 
 export interface Edge {
   from: string;
   to: string;
-  kind: 'uses' | 'consumes';
+  kind: 'uses' | 'consumes' | 'calls';
   w: number;
+  /** First place the link shows up, as path:line. */
+  at?: string;
 }
 
 export interface Skeleton {

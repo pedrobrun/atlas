@@ -79,6 +79,17 @@ export function renderContext(atlas: Atlas): string {
     lines.push(`files: ${n.files.map((f) => f.path.split('/').pop()).join(', ')}`, '');
   }
 
+  const systems = nodes.filter((n) => n.kind === 'external');
+  if (systems.length) {
+    lines.push('## External systems', 'Systems outside the codebase. Refer to them by id like modules.', '');
+    for (const n of systems) {
+      const callers = edges.filter((e) => e.to === n.id).map((e) => `${e.from} (${e.at})`);
+      lines.push(`### ${n.id} · ${n.name}${n.system ? ' · ' + n.system : ''}`);
+      if (n.desc) lines.push(english(n.desc, 'tech') || english(n.desc, 'biz'));
+      lines.push(`called from: ${callers.join(', ') || 'nowhere found'}`, '');
+    }
+  }
+
   if (flows.length) {
     lines.push('## Flows');
     for (const f of flows) {
@@ -130,6 +141,8 @@ export function renderBrief(atlas: Atlas, paths: BriefPaths): string {
     }
     lines.push('');
   }
+  const systems = atlas.nodes.filter((n) => n.kind === 'external').map((n) => n.name);
+  if (systems.length) lines.push(`External systems: ${systems.join(', ')}.`, '');
   lines.push(
     `The full map is ${paths.context}: every module with its description, dependencies and evidence, plus flows, invariants and decisions. Read the parts you need before changing an area you don't know.`,
     '',

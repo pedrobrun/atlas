@@ -47,6 +47,7 @@ Run `/atlas:atlas` again to open the map. Add `status` to see what is out of dat
 **In the map:**
 
 - Click a box to open it, and press Esc to go back up one level.
+- External systems (databases, queues, SaaS and AI APIs) ring the code, each linked to the code that calls it. Open a capability or a module and the systems it talks to dock beside it.
 - Ask the side chat about the architecture. It lights up the modules it is talking about.
 - Ask it to document a flow, and it traces the flow in the code for you to save.
 
@@ -59,7 +60,7 @@ A project is any folder holding one or more git repos. Its map lives with it, ne
 ```
 <project>/
   .atlas/
-    atlas.config.json        # how files group into modules
+    atlas.config.json        # how files group into modules, and which external systems to look for
     semantic.json            # what they mean: capabilities, descriptions, flows, rules, decisions
     descriptions.local.json  # descriptions the agent rewrote or wrote on first visit
     flows.local.json         # flows saved from the chat
