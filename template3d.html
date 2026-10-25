@@ -456,6 +456,8 @@ function computeRoles() {
     const faint = f.kind === 'module' || f.kind === 'area';
     for (const s of a.children) if (roles[s.id] === 'hidden') roles[s.id] = faint && a !== root ? 'far' : 'context';
   }
+  const lit = litSet();
+  if (lit.size) for (const id in T) if (T[id].kind === 'module' && !lit.has(id) && roles[id] === 'closed') roles[id] = 'dim';
   return roles;
 }
 let roles = {};
@@ -649,7 +651,6 @@ function goUp() {
   if (state.sel) { state.sel = null; applyState(); return; }
   let p = T[state.focus]?.parent;
   while (p && p.kind === 'group') p = p.parent;
-  if (T[state.focus]?.kind === 'module') p = root;
   state.focus = p ? p.id : 'root';
   applyState();
 }
@@ -1000,7 +1001,15 @@ async function ensureDescribed(n) {
   describing.delete(n.id);
   renderUI();
 }
-function light(ids) { state.flow = ''; state.sel = null; state.focus = 'root'; state.hl = ids; applyState(); }
+function light(ids) {
+  state.flow = ''; state.sel = null; state.hl = ids;
+  const lit = [...litSet()];
+  const inside = (id, f) => { for (let n = T[id]; n; n = n.parent) if (n === f) return true; return false; };
+  let f = T[state.focus] || root;
+  while (f !== root && (f.kind === 'group' || !lit.every((id) => inside(id, f)))) f = f.parent;
+  state.focus = f.id;
+  applyState();
+}
 document.getElementById('ask').addEventListener('submit', (e) => { e.preventDefault(); const q = qEl.value; qEl.value = ''; qEl.style.height = ''; ask(q); });
 qEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); document.getElementById('ask').requestSubmit(); } });
 qEl.addEventListener('input', () => { qEl.style.height = 'auto'; qEl.style.height = Math.min(qEl.scrollHeight, 120) + 'px'; });
