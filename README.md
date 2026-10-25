@@ -11,6 +11,8 @@ Atlas keeps both layers:
 - a deterministic skeleton of modules, imports and hashes, which serves as evidence;
 - a semantic layer on top of it, anchored to `file:line`, that says what each part does and records the flows, the rules that must hold, and the decisions behind them.
 
+![The map of a made-up procurement system: capabilities as glass districts, external systems on a ring around them](assets/demo-root.png)
+
 > **Status: prototype.** Works with Claude Code.
 
 ## Install
@@ -54,6 +56,18 @@ Run `/atlas:atlas` again to open the map. Add `status` to see what is out of dat
 - Ask it to document a flow, and it traces the flow in the code for you to save.
 
 The chat and the descriptions run your own Claude Code (`claude -p`) with read-only tools, so there is no API key to set up.
+
+## Example
+
+[`examples/procurement`](examples/procurement) is a made-up company's procurement system. It has six services and nine external systems, and its flows cross all of them. Its map in `examples/procurement/.atlas/` was written by `/atlas:atlas` alone, in one run. To open it from a clone:
+
+```sh
+node src/cli.ts open examples/procurement
+```
+
+Opening a capability brings the systems it talks to next to it:
+
+![The invoice matching capability open, with S3, OpenAI and SendGrid docked beside it](assets/demo-focus.png)
 
 ## The project folder
 
