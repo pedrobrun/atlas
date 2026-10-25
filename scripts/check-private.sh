@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Refuse anything that names a private term: the working tree and every commit in
-# the given range (default: all history). Terms live in .private-terms, which is
-# gitignored — the list itself must never be committed.
-# Usage: scripts/check-private.sh [<rev-range>]
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
@@ -20,11 +16,8 @@ pattern=$(grep -vE '^\s*(#|$)' "$terms_file" | sed 's/[][\.*^$/]/\\&/g' | paste 
 range=${1:---all}
 found=0
 
-# Files as they are now (tracked and not yet tracked, minus ignored ones).
 if git ls-files -co --exclude-standard | grep -v '^vendor/' | xargs grep -nIiE "$pattern" 2>/dev/null; then found=1; fi
-# Paths, contents and messages of every commit in range.
 if git log $range -p --format='commit %H%n%an <%ae>%n%B' -- . ':!vendor' | grep -nIiE "$pattern" | head -20 | grep .; then found=1; fi
-# Branch names.
 if git for-each-ref --format='%(refname:short)' refs/heads | grep -iE "$pattern"; then found=1; fi
 
 if [ "$found" = 1 ]; then

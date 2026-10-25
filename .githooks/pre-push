@@ -1,3 +1,2 @@
 #!/usr/bin/env bash
-# Block a push that would publish a private term (see AGENTS.md).
 exec "$(git rev-parse --show-toplevel)/scripts/check-private.sh" --all

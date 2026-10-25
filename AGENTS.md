@@ -5,6 +5,7 @@
 This repository will be open source. It must never contain anything that belongs to a real company, client or person — not in code, comments, tests, fixtures, examples, docs, commit messages, branch names, PR titles or PR descriptions. Once something reaches git history or GitHub it is effectively public; a later commit does not remove it.
 
 That includes, without exception:
+
 - names of companies, clients, products, people, repos, packages or package scopes;
 - repo layouts, file paths, module names, table names or routes taken from a real codebase;
 - semantic descriptions, flows, invariants or decisions written about a real codebase;
@@ -26,5 +27,6 @@ If you are unsure whether something is specific to a real project, assume it is 
 
 ## Working here
 
-- `skeleton.mjs`, `build.mjs`, `serve.mjs` take the project folder as their first argument; see `README.md`.
-- To try changes against a real project, point the scripts at that project's folder. Its data stays there.
+- TypeScript throughout. Node runs `src/*.ts` directly (type stripping), so only erasable syntax: no `enum`, `namespace` or parameter properties; type-only imports use `import type`; local imports keep the `.ts` extension. `src/viewer` is bundled by esbuild at build time.
+- `npm run check` must pass before committing: types, formatting (Prettier), tests and the private-terms scan. `npm run format` fixes formatting; `npm run test:update` regenerates the snapshot after an intended output change.
+- The scripts take the project folder as their first argument; see `README.md`. To try changes against a real project, point them at that project's folder. Its data stays there.

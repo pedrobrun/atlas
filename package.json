@@ -1,0 +1,31 @@
+{
+  "name": "atlas",
+  "version": "0.0.0",
+  "private": true,
+  "description": "A living, semantic, 3D map of a codebase, kept up to date by the agents that write the code",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "skeleton": "node src/skeleton.ts",
+    "build": "node src/build.ts",
+    "serve": "node src/serve.ts",
+    "typecheck": "tsc --noEmit",
+    "check:private": "scripts/check-private.sh",
+    "test": "node --test test/*.test.ts",
+    "test:update": "node --test --test-update-snapshots test/*.test.ts",
+    "check": "tsc --noEmit && prettier --check . && node --test test/*.test.ts && scripts/check-private.sh",
+    "format": "prettier --write ."
+  },
+  "dependencies": {
+    "esbuild": "0.28.2",
+    "three": "0.186.1"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "@types/three": "0.186.0",
+    "prettier": "3.9.10",
+    "typescript": "7.0.2"
+  }
+}
