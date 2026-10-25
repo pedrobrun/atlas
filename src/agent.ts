@@ -46,7 +46,8 @@ export function contextSection(context: string, id: string) {
 }
 
 export function describePrompt({ id, section, files }: { id: string; section: string; files: string[] }) {
-  const describeModule = !/\[(verified|inferred|generated)\]/.test(section);
+  const describeModule =
+    section.includes('STALE description') || !/\[(verified|inferred|generated)\]/.test(section);
   const moduleShape = describeModule
     ? '"module":{"biz_en":"…","biz_pt":"…","tech_en":"…","tech_pt":"…"},'
     : '';
@@ -63,6 +64,7 @@ Read every file. Then output ONLY one fenced block and nothing else:
 \`\`\`
 biz: one plain sentence on what it is for, for someone who doesn't read code.
 tech: one or two sentences on how it does it, naming the key functions, routes or components.
+Describe the code as it is now; never mention what the map said before.
 _pt fields in Brazilian Portuguese. Use the file paths exactly as listed.`;
 }
 

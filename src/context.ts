@@ -109,3 +109,35 @@ export function renderContext(atlas: Atlas): string {
   }
   return lines.join('\n');
 }
+
+export interface BriefPaths {
+  cli: string;
+  context: string;
+  semantic: string;
+  reference: string;
+}
+
+export function renderBrief(atlas: Atlas, paths: BriefPaths): string {
+  const modules = atlas.nodes.filter((n) => n.kind === 'module');
+  const stale = modules.filter(isStale).map((n) => n.id);
+  const lines = [`# Atlas map of ${atlas.config.name}`, ''];
+  if (atlas.system.tech || atlas.system.biz) lines.push(english(atlas.system, 'tech'), '');
+  if (atlas.caps.length) {
+    lines.push('Capabilities:');
+    for (const c of atlas.caps) {
+      const count = modules.filter((n) => n.cap === c.id).length;
+      lines.push(`- ${english(c, 'name')} (${count} modules): ${english(c, 'biz') || english(c, 'tech')}`);
+    }
+    lines.push('');
+  }
+  lines.push(
+    `The full map is ${paths.context}: every module with its description, dependencies and evidence, plus flows, invariants and decisions. Read the parts you need before changing an area you don't know.`,
+    '',
+    'Keep the map true as you work:',
+    `- When you add, remove or rename a module, change a flow, or add or break a rule, update ${paths.semantic} in the same change (format: ${paths.reference}) and run \`node ${paths.cli} build\`. Fix whatever it reports.`,
+    '- Descriptions of modules whose code changed are rewritten on their own after your turn.',
+    `- \`node ${paths.cli} open\` shows the map in 3D.`,
+  );
+  if (stale.length) lines.push('', `Descriptions out of date right now: ${stale.slice(0, 20).join(', ')}.`);
+  return lines.join('\n');
+}

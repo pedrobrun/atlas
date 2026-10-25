@@ -47,10 +47,12 @@ export function mergeMap(input: MergeInput): MergeResult {
     const n: MapNode = { ...structuredClone(sk), hash: moduleHash(sk.files) };
     if (n.kind === 'module') n.cap = caps.find((c) => c.rules.some((r) => r.test(n.id)))?.id ?? null;
     const written = semantic.desc?.[n.id];
-    if (written) n.desc = { ...written, describedHash: written.describedHash ?? n.hash };
+    const fromSemantic = written && { ...written, describedHash: written.describedHash ?? n.hash };
+    const stored = descriptions.nodes[n.id];
+    n.desc = [fromSemantic, stored].find((d) => d?.describedHash === n.hash) ?? fromSemantic ?? stored;
+    if (!n.desc) delete n.desc;
     const legacy = semantic.legacyStatus?.[n.id];
     if (legacy) n.legacy = legacy;
-    if (!n.desc && descriptions.nodes[n.id]) n.desc = descriptions.nodes[n.id];
     for (const f of n.files) if (descriptions.files[f.path]) f.desc = descriptions.files[f.path];
     if (n.desc) {
       withEnglish(n.desc, en.desc?.[n.id]);

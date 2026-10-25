@@ -2,35 +2,17 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import type {
-  ChatEvent,
-  ChatRequest,
-  Desc,
-  DescribeRequest,
-  DescribeResponse,
-  DescriptionsStore,
-  Flow,
-  SaveFlowResponse,
-  Skeleton,
-} from './types.ts';
-import { atlasPaths, moduleHash, readJsonOr } from './project.ts';
-import type { DescDraft } from './parse.ts';
-import { parseChatRequest, parseDescribeRequest, parseDescription, parseFlow, parseFlows } from './parse.ts';
-import {
-  chatFlags,
-  chatSystemPrompt,
-  contextSection,
-  describeFlags,
-  describePrompt,
-  fencedJson,
-  readAgentLine,
-} from './agent.ts';
+import type { ChatEvent, ChatRequest, DescribeRequest, Flow, SaveFlowResponse } from './types.ts';
+import { atlasPaths, readJsonOr } from './project.ts';
+import { parseChatRequest, parseDescribeRequest, parseFlow, parseFlows } from './parse.ts';
+import { chatFlags, chatSystemPrompt, readAgentLine } from './agent.ts';
+import { runClaude } from './claude.ts';
+import { describeModule } from './describe.ts';
 
 const project = path.resolve(process.argv[2] || '.');
 const port = +(process.argv[3] || 4317);
 const paths = atlasPaths(project);
 
-const claude = (args: string[]) => spawn('claude', args, { cwd: project, stdio: ['ignore', 'pipe', 'pipe'] });
 const rebuild = () =>
   spawn(process.execPath, [path.join(import.meta.dirname, 'build.ts'), project], {
     stdio: ['ignore', 'ignore', 'pipe'],
@@ -44,7 +26,7 @@ function chat(res: http.ServerResponse, { message, session, lang, about }: ChatR
   res.writeHead(200, { 'content-type': 'application/x-ndjson', 'cache-control': 'no-cache' });
   const send = (e: ChatEvent) => res.write(JSON.stringify(e) + '\n');
   const system = chatSystemPrompt({ lang, about, contextPath: paths.context });
-  const child = claude(chatFlags(message, system, session));
+  const child = runClaude(project, chatFlags(message, system, session));
   let pending = '';
   child.stdout.on('data', (chunk: Buffer) => {
     pending += chunk;
@@ -62,47 +44,24 @@ function chat(res: http.ServerResponse, { message, session, lang, about }: ChatR
   });
 }
 
-const toDesc = (o: DescDraft, describedHash: string): Desc => ({
-  biz: o.biz_pt,
-  biz_en: o.biz_en,
-  tech: o.tech_pt,
-  tech_en: o.tech_en,
-  confidence: 'generated',
-  describedHash,
-});
-
 function describe(res: http.ServerResponse, { id }: DescribeRequest) {
-  const skeleton = readJsonOr<Skeleton>(paths.skeleton, { generatedAt: '', nodes: [], edges: [] });
-  const mod = skeleton.nodes.find((n) => n.id === id && n.kind === 'module');
-  if (!mod) {
+  const described = describeModule(project, id);
+  if (!described) {
     res.writeHead(404);
     res.end();
     return;
   }
-  const section = contextSection(fs.readFileSync(paths.context, 'utf8'), id);
-  const child = claude(describeFlags(describePrompt({ id, section, files: mod.files.map((f) => f.path) })));
-  let out = '';
-  child.stdout.on('data', (d: Buffer) => (out += d));
-  child.stderr.on('data', (d: Buffer) => process.stderr.write(d));
-  child.on('close', () => {
-    try {
-      const got = parseDescription(fencedJson(JSON.parse(out).result || ''));
-      const store = readJsonOr<DescriptionsStore>(paths.descriptions, { nodes: {}, files: {} });
-      if (got.module) store.nodes[id] = toDesc(got.module, moduleHash(mod.files));
-      const files: Record<string, Desc> = {};
-      for (const f of mod.files) {
-        const draft = got.files[f.path];
-        if (draft) files[f.path] = store.files[f.path] = toDesc(draft, f.hash);
-      }
-      fs.writeFileSync(paths.descriptions, JSON.stringify(store, null, 2));
+  described.then(
+    (body) => {
       rebuild();
-      sendJson(res, 200, { module: got.module ? store.nodes[id] : null, files } satisfies DescribeResponse);
-    } catch (e) {
-      process.stderr.write(`describe ${id} failed: ${e}\n${out.slice(-400)}\n`);
+      sendJson(res, 200, body);
+    },
+    (e) => {
+      process.stderr.write(`${e.message}\n`);
       res.writeHead(500);
       res.end(String(e));
-    }
-  });
+    },
+  );
 }
 
 function saveFlow(res: http.ServerResponse, flow: Flow) {
@@ -141,6 +100,8 @@ function handle(req: http.IncomingMessage, res: http.ServerResponse) {
         res.end(String(e));
       }
     });
+  } else if (req.url === '/health') {
+    sendJson(res, 200, { project });
   } else if (req.url === '/') {
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
     fs.createReadStream(paths.page).pipe(res);
