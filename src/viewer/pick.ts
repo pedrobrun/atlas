@@ -1,4 +1,3 @@
-// Hover and click on boxes in the scene.
 import * as THREE from 'three';
 import { modLabel } from './data.ts';
 import { byId, esc } from './dom.ts';
@@ -15,7 +14,6 @@ const ray = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
 const tip = byId('tip');
 
-// A closed box beats the faint shell around it; then the deeper node; then the nearer hit.
 function priority(n: TreeNode) {
   let depth = 0;
   for (let p = n.parent; p; p = p.parent) depth++;
@@ -68,7 +66,7 @@ function click(n: TreeNode) {
       applyState();
       return;
     }
-    state.flow = ''; // clicking outside the flow leaves it
+    state.flow = '';
   }
   open(n);
 }
@@ -82,7 +80,6 @@ export function wirePicking() {
     else tip.hidden = true;
   });
   canvas.addEventListener('pointerleave', () => (tip.hidden = true));
-  // A click is a press and release without dragging (dragging orbits the camera).
   let down: { x: number; y: number } | null = null;
   canvas.addEventListener('pointerdown', (ev) => (down = { x: ev.clientX, y: ev.clientY }));
   canvas.addEventListener('pointerup', (ev) => {

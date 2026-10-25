@@ -1,5 +1,3 @@
-// What is visible, and how, for the current focus, flow or highlight. Each node gets a
-// role; a role is a target fill opacity, edge opacity and height that the scene eases to.
 import type { Anim, TreeNode } from './tree.ts';
 import { ancestors, modulesUnder, view } from './tree.ts';
 import { FLOW, modules } from './data.ts';
@@ -19,12 +17,10 @@ export const ROLE = {
 } satisfies Record<string, Anim>;
 export type Role = keyof typeof ROLE;
 
-/** Roles you can click or hover. */
 export const PICKABLE = new Set<Role>(['closed', 'context', 'ghost', 'shell', 'far', 'district', 'dim']);
 
 export const stepModules = () => FLOW[state.flow]?.steps.map((s) => s.unit) ?? [];
 
-/** Modules the chat asked to light up (capability ids expand to their modules). */
 export function litSet(): Set<string> {
   const { T } = view;
   if (!state.hl?.length || state.flow) return new Set();
@@ -41,7 +37,6 @@ export function computeRoles(): Record<string, Role> {
   const { T, root } = view;
   const roles: Record<string, Role> = {};
   for (const id in T) roles[id] = 'hidden';
-  // reveal the children of n, opening groups
   const showInside = (n: TreeNode) => {
     for (const c of n.children) {
       if (c.kind === 'group') {
@@ -50,7 +45,6 @@ export function computeRoles(): Record<string, Role> {
       } else roles[c.id] = 'closed';
     }
   };
-  // reveal everything down to modules: containers become glass districts
   const openDeep = (n: TreeNode) => {
     for (const c of n.children) {
       if (c.kind === 'group') {
@@ -85,7 +79,6 @@ export function computeRoles(): Record<string, Role> {
     dimUnlit();
     return roles;
   }
-  // the focus is open; its ancestors are faint shells; their other children stay as context
   roles[f.id] = 'glass';
   showInside(f);
   const faint = f.kind === 'module' || f.kind === 'area';

@@ -1,11 +1,8 @@
-// Reading the agent's answer: its text, the modules it asks to light up, and a drafted flow.
 import type { Flow, FlowDraft } from '../types.ts';
 
 export interface Answer {
   body: string;
-  /** Ids from the closing `SHOW:` line that exist in the map. */
   show: string[];
-  /** A flow the agent documented, when its fenced block is complete and well-formed. */
   draft: FlowDraft | null;
 }
 
@@ -39,10 +36,6 @@ function parseDraft(json: string): FlowDraft | null {
   };
 }
 
-/**
- * Splits an answer, complete or still streaming. A flow block that hasn't closed yet is cut
- * from the text so half a JSON object never shows.
- */
 export function readAnswer(text: string, inMap: (id: string) => boolean): Answer {
   let draft: FlowDraft | null = null;
   const block = text.match(/```atlas-flow\s*([\s\S]*?)```/);
@@ -62,7 +55,6 @@ export function readAnswer(text: string, inMap: (id: string) => boolean): Answer
   return { body: text.slice(0, showLine.index), show, draft };
 }
 
-/** A drafted flow in the map's shape: Portuguese as the base text, steps on unknown modules dropped. */
 export function toFlow(draft: FlowDraft, inMap: (id: string) => boolean): Flow {
   const id = (draft.id || draft.name_en || 'flow')
     .toLowerCase()

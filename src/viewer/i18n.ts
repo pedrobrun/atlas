@@ -1,4 +1,3 @@
-// Interface strings, and picking content text in the current language.
 import { textOf } from '../types.ts';
 import type { Bilingual } from '../types.ts';
 import { state } from './state.ts';
@@ -149,7 +148,6 @@ export const isKey = (k: string): k is Key => k in pt;
 export const t = (k: Key): string => (state.lang === 'en' ? en : pt)[k];
 export const suggestions = () => SUGG[state.lang];
 
-/** Content fields carry an `_en` twin; pick by the current language, falling back to the other. */
 export const L = <K extends string>(o: Bilingual<K> | null | undefined, k: K) =>
   textOf(o, k, state.lang === 'en' ? 'en' : 'base');
 export const fmt = (n: number) => n.toLocaleString(state.lang === 'en' ? 'en-US' : 'pt-BR');

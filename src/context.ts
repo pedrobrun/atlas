@@ -1,15 +1,11 @@
-// The map as markdown, for the chat agent to read before answering. English where the
-// map has it, the base text otherwise.
 import { isStale } from './types.ts';
 import type { Atlas, Bilingual, Edge } from './types.ts';
 
-/** English if present (an empty string counts as absent), else the base text. */
 function english<K extends string>(o: Bilingual<K> | undefined, k: K): string {
   const fields: Partial<Record<string, string>> = { ...o };
   return fields[`${k}_en`] || fields[k] || '';
 }
 
-/** "id (weight), …" for the edges matching `pick`, heaviest first. */
 function neighbours(edges: Edge[], pick: (e: Edge) => boolean, side: 'from' | 'to') {
   const weight = new Map<string, number>();
   for (const e of edges) if (pick(e)) weight.set(e[side], (weight.get(e[side]) ?? 0) + e.w);
@@ -19,7 +15,6 @@ function neighbours(edges: Edge[], pick: (e: Edge) => boolean, side: 'from' | 't
     .join(', ');
 }
 
-/** The longest folder prefix all of a module's files share. */
 function commonDir(paths: string[]) {
   const parts = paths.map((p) => p.split('/'));
   const shared: string[] = [];

@@ -1,4 +1,3 @@
-// What the Details panel and the in-scene caption say about the thing in view.
 import { isStale } from '../types.ts';
 import type { Flow } from '../types.ts';
 import { CAP, D, FLOW, isUnder, LEGACY_COLOR, modLabel, modules, repoName, SOURCES } from './data.ts';
@@ -27,14 +26,16 @@ const kindName = (n: TreeNode) =>
         : 'repo',
   );
 
-/** The node the Details panel and caption describe: the selected file, else the opened box. */
-const subject = () => view.T[state.sel ?? ''] || view.T[state.focus] || view.root;
+function subject(): Exclude<TreeNode, { kind: 'group' }> {
+  const n = view.T[state.sel ?? ''] || view.T[state.focus] || view.root;
+  return n.kind === 'group' ? view.root : n;
+}
 
 export function detailsHtml(): string {
   const flow = FLOW[state.flow];
   if (flow) return flowCard(flow);
   const n = subject();
-  if (n.kind === 'root' || n.kind === 'group') return rootCard(); // a group is never opened
+  if (n.kind === 'root') return rootCard();
   if (n.kind === 'cap') return capCard(n);
   if (n.kind === 'file') return fileCard(n);
   return nodeCard(n);
@@ -82,7 +83,6 @@ function fileCard(n: Extract<TreeNode, { kind: 'file' }>) {
   ].join('');
 }
 
-/** Module ids on the other end of edges leaving (`out`) or entering a set of modules, with weights. */
 function neighbours(mine: Set<string>, side: 'out' | 'in') {
   const weights = new Map<string, number>();
   for (const e of D.edges) {
@@ -158,7 +158,6 @@ function flowCard(f: Flow) {
   ].join('');
 }
 
-/** The caption under the scene: the current flow step, or what the thing in view is. Empty when nothing is. */
 export function captionHtml(describing: Set<string>): string {
   const flow = FLOW[state.flow];
   if (flow) {
@@ -173,7 +172,7 @@ export function captionHtml(describing: Set<string>): string {
     ].join('');
   }
   const n = subject();
-  if (n.kind === 'root' || n.kind === 'group') return '';
+  if (n.kind === 'root') return '';
   const d = descOf(n);
   const lines = n.kind === 'file' ? n.file.loc : countLoc(n);
   const where = n.kind === 'cap' ? '' : `${repoDot(n.repo)} ${esc(repoName[n.repo])} · `;

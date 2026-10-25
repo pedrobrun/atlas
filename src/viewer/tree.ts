@@ -1,6 +1,3 @@
-// The nested boxes the scene draws. Every lens produces the same shape:
-// root → containers → … → modules → files. 'group' nodes are plates that only organise
-// space; clicking passes through them.
 import type * as THREE from 'three';
 import type { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import type { FileEntry, MapNode, PageData } from '../types.ts';
@@ -15,10 +12,8 @@ export interface Anim {
   sy: number;
 }
 
-/** How a node is highlighted: lit by the chat, part of the toured flow, or the current step. */
 export type Mark = 'none' | 'lit' | 'flow' | 'step';
 
-/** The three.js objects drawing a node; set by scene.ts. */
 export interface Gfx {
   mesh: THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
   edges: THREE.LineSegments<THREE.BufferGeometry, THREE.LineBasicMaterial>;
@@ -32,12 +27,10 @@ interface Box {
   name: string;
   children: TreeNode[];
   parent: TreeNode | null;
-  /** Footprint and height; `stack` adds what sits on top (a group plate's modules). */
   w: number;
   d: number;
   h: number;
   stack: number;
-  /** Position relative to the parent, then absolute. */
   lx: number;
   lz: number;
   x: number;
@@ -58,33 +51,31 @@ export type TreeNode = Box &
     | { kind: 'file'; repo: string; file: FileEntry }
   );
 export type Kind = TreeNode['kind'];
+export type RootNode = Extract<TreeNode, { kind: 'root' }>;
 
 interface View {
-  root: TreeNode;
-  /** Every node by id. */
+  root: RootNode;
   T: Record<string, TreeNode>;
-  /** The role each node got in the last render. */
   roles: Record<string, Role>;
   hovered: TreeNode | null;
 }
 
 export const ENTER = new Set<Kind>(['cap', 'repo', 'area', 'module']);
 
-/** What a node of each kind carries besides the shared box. */
 type Variant = TreeNode extends infer T
   ? T extends TreeNode
     ? Omit<T, Exclude<keyof Box, 'id' | 'name'>>
     : never
   : never;
-function box(variant: Variant, children: TreeNode[] = []): TreeNode {
-  return {
-    ...variant,
-    ...{ children, parent: null, w: 0, d: 0, h: 0, stack: 0, lx: 0, lz: 0, x: 0, y: 0, z: 0 },
+function box<V extends Variant>(variant: V, children: TreeNode[] = []): V & Box {
+  const shared: Box = {
+    ...{ id: variant.id, name: variant.name, children, parent: null },
+    ...{ w: 0, d: 0, h: 0, stack: 0, lx: 0, lz: 0, x: 0, y: 0, z: 0 },
     ...{ cur: { fill: 0, edge: 0, sy: 0.001 }, tgt: { fill: 0, edge: 0, sy: 0.001 }, mark: 'none' },
   };
+  return { ...variant, ...shared };
 }
 
-/** The current tree, its index, and what the last render decided; rebuilt with the lens. */
 export const view: View = {
   root: box({ kind: 'root', id: 'root', name: D.config.name }),
   T: {},
@@ -92,7 +83,6 @@ export const view: View = {
   hovered: null,
 };
 
-// Framework file names say nothing on their own (four route.ts side by side); prefix their folder.
 const GENERIC = /^(route|page|layout|index|loading|react|types)\.(t|j)sx?$/;
 function fileLabel(path: string) {
   const parts = path.split('/');
@@ -166,12 +156,9 @@ const PAD: Record<Kind, number> = {
   module: 0.22,
   file: 0,
 };
-/** Height a container adds above its tallest child. */
 const HEADROOM = (n: TreeNode) =>
   n.kind === 'module' ? 0.3 : n.kind === 'area' ? 0.5 : 0.9 + Math.log10(1 + n.children.length) * 1.2;
 
-// Sizes bottom-up: a file's footprint and height grow with its lines; a container packs its
-// children in rows and wraps them with padding, tall enough to enclose them.
 function layout(n: TreeNode) {
   if (n.kind === 'file') {
     const lines = n.file.loc;
@@ -241,7 +228,6 @@ export function inside(id: string, container: TreeNode) {
   for (let n: TreeNode | null = view.T[id]; n; n = n.parent) if (n === container) return true;
   return false;
 }
-/** The description that applies to a node, if any. */
 export const descOf = (n: TreeNode) =>
   n.kind === 'cap'
     ? n.cap

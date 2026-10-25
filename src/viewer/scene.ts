@@ -1,10 +1,9 @@
-// three.js: renderer, camera, lights, one mesh per tree node, and the frame loop that eases
-// every node toward its role.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DObject, CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import { isStale } from '../types.ts';
 import { LEGACY_COLOR, REPO_COLOR } from './data.ts';
+import { byId } from './dom.ts';
 import { state } from './state.ts';
 import type { Gfx, Mark, TreeNode } from './tree.ts';
 import { buildTree, view } from './tree.ts';
@@ -17,10 +16,10 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
-document.getElementById('stage')!.appendChild(renderer.domElement);
+byId('stage').appendChild(renderer.domElement);
 const labelRenderer = new CSS2DRenderer();
 labelRenderer.setSize(innerWidth, innerHeight);
-document.getElementById('labels')!.appendChild(labelRenderer.domElement);
+byId('labels').appendChild(labelRenderer.domElement);
 
 export const scene = new THREE.Scene();
 export const camera = new THREE.PerspectiveCamera(38, innerWidth / innerHeight, 0.1, 2000);
@@ -54,7 +53,6 @@ const grid = new THREE.GridHelper(600, 300, dark ? 0x2c2b28 : 0xdcd8cf, dark ? 0
 grid.position.y = -0.02;
 scene.add(grid);
 
-// Every box is a unit cube standing on its base, scaled to the node's size.
 const unitBox = new THREE.BoxGeometry(1, 1, 1);
 unitBox.translate(0, 0.5, 0);
 const unitEdges = new THREE.EdgesGeometry(unitBox);
@@ -115,7 +113,6 @@ function draw(n: TreeNode): Gfx {
   return gfx;
 }
 
-/** (Re)builds the tree for the current lens and draws every node. Call applyState after. */
 export function buildScene() {
   scene.remove(world);
   for (const n of Object.values(view.T)) {
@@ -129,12 +126,10 @@ export function buildScene() {
   for (const n of Object.values(view.T)) if (n.kind !== 'root') n.gfx = draw(n);
 }
 
-/** Glow on top of a node's base color for each highlight. */
 const EMISSIVE: Record<Mark, number> = { none: 0x000000, lit: 0x6a4200, flow: 0x2e0614, step: 0x7a1238 };
 export const setGlow = (n: TreeNode, hovered = false) =>
   n.gfx?.mesh.material.emissive.setHex(hovered ? (dark ? 0x2a2a3a : 0x1d1d2a) : EMISSIVE[n.mark]);
 
-// ---------- camera ----------
 let camGoal: THREE.Vector3 | null = null;
 let targetGoal: THREE.Vector3 | null = null;
 const VIEW_DIR = new THREE.Vector3(0.55, 0.85, 1).normalize();
@@ -142,7 +137,6 @@ function flyTo(target: THREE.Vector3, distance: number) {
   targetGoal = target;
   camGoal = target.clone().addScaledVector(VIEW_DIR, distance);
 }
-/** Flies to the focus, or to the bounding box of a flow or of the lit modules. */
 export function frameFocus() {
   const { T, root } = view;
   const lit = litSet();
@@ -161,7 +155,6 @@ export function frameFocus() {
   const size = isRoot ? Math.hypot(n.w, n.d) * 0.8 : Math.max(n.w, n.d, n.h * 1.5);
   flyTo(new THREE.Vector3(n.x, n.y + (isRoot ? 0 : n.h * 0.35), n.z), size * (isRoot ? 1.2 : 1.55) + 3);
 }
-/** Starts the first flight from a little further out, so the map swoops in. */
 export function introCamera() {
   if (camGoal) camera.position.copy(camGoal).add(new THREE.Vector3(10, 18, 14));
 }
@@ -170,7 +163,6 @@ controls.addEventListener('start', () => {
   targetGoal = null;
 });
 
-/** Keeps the scene centred in the space the side panel leaves. */
 export function fitView() {
   camera.aspect = innerWidth / innerHeight;
   if (innerWidth > 900 && state.panel)
@@ -184,8 +176,6 @@ addEventListener('resize', () => {
   labelRenderer.setSize(innerWidth, innerHeight);
 });
 
-// ---------- frame loop ----------
-/** Other modules animate their own objects each frame (seconds since load). */
 export const onFrame: ((t: number) => void)[] = [];
 
 function ease(n: TreeNode, gfx: Gfx, k: number, t: number) {
@@ -219,17 +209,18 @@ function ease(n: TreeNode, gfx: Gfx, k: number, t: number) {
     staleMark.scale.setScalar(Math.min(1, Math.max(n.w, 0.6)));
     staleMark.position.set(n.x + n.w / 2 - 0.15, top + 0.3 + Math.sin(t * 3) * 0.07, n.z - n.d / 2 + 0.15);
   }
-  // District names sit on the back edge so they don't cover what is inside.
   label?.position.set(n.x, top + 0.2, view.roles[n.id] === 'district' ? n.z - n.d / 2 : n.z);
 }
 
+/** Fraction of the way still to go after one second of easing toward a target. */
+const LEFT_AFTER_ONE_SECOND = 0.0015;
 let last = performance.now();
 export function tick() {
   const now = performance.now();
   const dt = Math.min((now - last) / 1000, 0.05);
   const t = now / 1000;
   last = now;
-  const k = 1 - Math.pow(0.0015, dt); // frame-rate independent smoothing
+  const k = 1 - Math.pow(LEFT_AFTER_ONE_SECOND, dt);
   for (const n of Object.values(view.T)) if (n.gfx) ease(n, n.gfx, k, t);
   for (const hook of onFrame) hook(t);
   if (camGoal && targetGoal) {

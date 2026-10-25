@@ -1,5 +1,3 @@
-// Joins the skeleton with the semantic layer, the agent-written descriptions and the saved
-// flows into one map. Pure: no IO; it reports problems instead of exiting.
 import type {
   AtlasConfig,
   Atlas,
@@ -23,13 +21,11 @@ export interface MergeInput {
 
 export interface MergeResult {
   atlas: Atlas;
-  /** Semantic entries pointing at ids the skeleton doesn't have. Any of these fails the build. */
   unknownIds: string[];
   modulesWithoutCapability: string[];
   droppedFlowSteps: string[];
 }
 
-/** Adds `<field>_en` for every English string given, next to the base-language field. */
 const withEnglish = <T extends object>(target: T, english: object | undefined): T =>
   Object.assign(
     target,
@@ -90,7 +86,6 @@ export function mergeMap(input: MergeInput): MergeResult {
     return f;
   });
 
-  // Flows documented from the chat already carry both languages; steps whose module is gone are dropped.
   const droppedFlowSteps: string[] = [];
   for (const f of structuredClone(input.savedFlows)) {
     const gone = f.steps.filter((s) => !known.has(s.unit)).map((s) => s.unit);

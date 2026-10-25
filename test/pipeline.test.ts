@@ -1,6 +1,3 @@
-// Characterization test: builds a made-up two-repo project, runs the real skeleton and build
-// scripts on it, and pins their output. Regenerate after an intended change with
-// `npm run test:update`.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -118,7 +115,6 @@ const store = {
   ]),
 };
 
-// Fixed identity and dates, so commit hashes in the skeleton are stable.
 const gitEnv = {
   ...process.env,
   GIT_AUTHOR_NAME: 'Test',

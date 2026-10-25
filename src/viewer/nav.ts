@@ -1,4 +1,3 @@
-// Moving around the map, and turning the state into roles, highlights and labels.
 import { FLOW, modLabel } from './data.ts';
 import { save, state } from './state.ts';
 import type { Mark, TreeNode } from './tree.ts';
@@ -9,7 +8,6 @@ import { frameFocus, setGlow } from './scene.ts';
 import { drawArcs } from './arcs.ts';
 import { renderUI } from './panels.ts';
 
-/** Applies the state to the scene. `instant` skips easing and the camera flight. */
 export function applyState(instant = false) {
   save();
   const roles = (view.roles = computeRoles());
@@ -42,7 +40,6 @@ function markOf(id: string, steps: string[], lit: Set<string>): Mark {
   return lit.has(id) ? 'lit' : 'none';
 }
 
-// Which boxes get a floating name, and how it looks; null when the box shows none.
 function labelFor(n: TreeNode, role: Role, focus: TreeNode, lit: Set<string>, steps: string[]) {
   const isChildOfFocus = n.parent === focus || (n.parent?.kind === 'group' && n.parent.parent === focus);
   if (lit.size && n.kind === 'module') return lit.has(n.id) ? { cls: 'lab hl small', text: n.name } : null;
@@ -72,7 +69,6 @@ function labelFor(n: TreeNode, role: Role, focus: TreeNode, lit: Set<string>, st
   return null;
 }
 
-/** Opens a box; a file is selected inside its module. */
 export function open(n: TreeNode) {
   state.hl = null;
   if (ENTER.has(n.kind)) {
@@ -87,7 +83,6 @@ export function open(n: TreeNode) {
   applyState();
 }
 
-/** Esc: always one level out — flow, highlight, file, then up the tree. */
 export function goUp() {
   if (state.flow) state.flow = '';
   else if (state.hl?.length) state.hl = null;
@@ -103,7 +98,6 @@ export function goUp() {
 export function goTo(id: string) {
   state.flow = '';
   if (!view.T[id]) {
-    // a capability in the repos lens: light its modules instead
     if (id.startsWith('cap:')) {
       state.hl = [id];
       state.focus = 'root';
@@ -124,7 +118,6 @@ export function stepBy(d: number) {
   applyState();
 }
 
-/** Lights modules up, backing out only as far as needed to show them all. */
 export function light(ids: string[]) {
   state.flow = '';
   state.sel = null;

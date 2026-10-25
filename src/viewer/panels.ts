@@ -1,5 +1,3 @@
-// The top bar, the Details panel, the in-scene caption and the left rail: writing them and
-// wiring their clicks.
 import { isStale } from '../types.ts';
 import { D, modules } from './data.ts';
 import { byId, esc } from './dom.ts';
@@ -53,14 +51,12 @@ export function renderUI() {
   ensureDescribed(selected?.kind === 'file' ? selected.parent : view.T[state.focus]);
 }
 
-/** What you are looking at, said in the scene itself (the Details panel has the rest). */
 export function renderCaption() {
   const caption = byId('caption');
   caption.innerHTML = captionHtml(describing);
   caption.hidden = !caption.innerHTML || state.panel === 'details';
 }
 
-// One panel at a time in the slot beside the rail; clicking the active button closes it.
 export function renderRail() {
   card.classList.toggle('collapsed', state.panel !== 'details');
   byId('chat').classList.toggle('collapsed', state.panel !== 'ask');
@@ -93,7 +89,6 @@ function switchSetting(setting: 'lens' | 'lang', value: string) {
   }
 }
 
-/** Every clickable thing outside the scene carries a data attribute saying what it does. */
 function onClick(el: HTMLElement) {
   const ds = el.dataset;
   const setting = el.closest('#lens') ? 'lens' : el.closest('#lang') ? 'lang' : null;

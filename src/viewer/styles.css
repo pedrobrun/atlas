@@ -203,7 +203,6 @@ select {
   padding: 16px 18px 18px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.1);
 }
-/* drawers: each side panel slides out to its edge and leaves a handle behind */
 #card,
 #chat {
   transition:
@@ -220,7 +219,6 @@ select {
   opacity: 0;
   pointer-events: none;
 }
-/* left rail: one button per panel; both panels share the slot beside it */
 #rail {
   position: fixed;
   left: 16px;

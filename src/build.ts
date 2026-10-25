@@ -1,6 +1,3 @@
-// Merge a project's skeleton and semantic layer, bundle the viewer, and write one
-// self-contained page plus a compact text version of the map for the chat agent.
-// Usage: node src/build.ts <project>   (reads <project>/.atlas, writes <project>/.atlas/out)
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -15,7 +12,6 @@ const viewer = path.join(import.meta.dirname, 'viewer');
 const project = path.resolve(process.argv[2] || '.');
 const paths = atlasPaths(project);
 
-/** The semantic layer is optional and may be written in TS or JS. */
 async function loadModule<T>(name: string): Promise<Partial<T>> {
   for (const ext of ['.ts', '.mjs', '.js']) {
     const file = path.join(paths.store, name + ext);
@@ -43,7 +39,6 @@ if (modulesWithoutCapability.length) {
 }
 for (const line of droppedFlowSteps) console.error(line);
 
-/** What the viewer reads: the map minus what only the agent's context uses. */
 function pageData(a: Atlas): PageData {
   return {
     config: a.config,
@@ -57,7 +52,6 @@ function pageData(a: Atlas): PageData {
   };
 }
 
-/** One offline page: the viewer bundled with three.js, its styles and markup, and the map as JSON. */
 async function renderPage(data: PageData) {
   const bundle = await esbuild.build({
     entryPoints: [path.join(viewer, 'main.ts')],

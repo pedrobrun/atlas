@@ -1,6 +1,3 @@
-// Deterministic skeleton of a project: sources (repos) → areas → modules, import edges,
-// content hashes. No LLM. Everything project-specific comes from <project>/.atlas/atlas.config.json.
-// Usage: node src/skeleton.ts <project>   → writes <project>/.atlas/out/skeleton.json
 import fs from 'node:fs';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
@@ -24,7 +21,6 @@ interface Source extends SourceConfig {
   files: Set<string>;
   rules: { re: RegExp; area: string; areaName?: string; module: string }[];
 }
-/** A file inside some source. */
 interface Target {
   source: Source;
   file: string;
@@ -39,7 +35,6 @@ const sources = new Map<string, Source>(
   }),
 );
 
-// A source's `modules` rules say how a file path becomes an area and a module; first match wins.
 function locate(source: Source, file: string) {
   const fill = (template: string, m: RegExpMatchArray) =>
     template.replace(/\$(\d)/g, (_, i: string) => m[+i] ?? '');
@@ -56,7 +51,6 @@ const moduleId = (t: Target) => {
   return l && `${t.source.id}/${l.area}/${l.module}`;
 };
 
-/** The file a package `exports` entry points at: a path, or a conditional object's import/default. */
 function exportTarget(entry: unknown): string | null {
   if (typeof entry === 'string') return entry;
   if (entry && typeof entry === 'object') {
@@ -68,7 +62,6 @@ function exportTarget(entry: unknown): string | null {
   return null;
 }
 
-// Package names and their `exports` turn bare specifiers into files, across sources.
 const packageExports = new Map<string, Target>();
 for (const source of sources.values()) {
   for (const manifest of lines(git(source.cwd, 'ls-files "*package.json"'))) {
@@ -106,8 +99,11 @@ function resolveImport(source: Source, file: string, spec: string): Target | nul
 const nodes = new Map<string, SkNode>();
 const edges = new Map<string, Edge>();
 const node = (id: string, props: Omit<SkNode, 'id' | 'files' | 'loc'>) => {
-  if (!nodes.has(id)) nodes.set(id, { id, files: [], loc: 0, ...props });
-  return nodes.get(id)!;
+  const existing = nodes.get(id);
+  if (existing) return existing;
+  const created: SkNode = { id, files: [], loc: 0, ...props };
+  nodes.set(id, created);
+  return created;
 };
 function addEdge(from: string, to: string, kind: Edge['kind']) {
   const key = `${from}|${to}|${kind}`;

@@ -1,4 +1,3 @@
-// Entry point of the viewer bundle.
 import { buildScene, fitView, frameFocus, introCamera, tick } from './scene.ts';
 import { applyState } from './nav.ts';
 import { wirePanels } from './panels.ts';

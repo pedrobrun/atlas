@@ -1,8 +1,5 @@
-// The chat panel. It talks to serve.ts, which runs the user's own agent read-only in the
-// project. Answers can cite modules, light them up, draft a flow, and modules get described
-// the first time they are opened.
 import type { ChatEvent, ChatRequest, DescribeResponse, Flow, SaveFlowResponse } from '../types.ts';
-import { CAP, D, FLOW, modLabel, N, repoOf } from './data.ts';
+import { addDraftFlow, CAP, D, FLOW, modLabel, N, repoOf } from './data.ts';
 import { byId, esc } from './dom.ts';
 import { L, suggestions, t } from './i18n.ts';
 import { state } from './state.ts';
@@ -21,16 +18,13 @@ let session: string | null = null;
 let busy = false;
 try {
   session = sessionStorage.getItem('atlasChat');
-} catch {
-  /* no persistence */
-}
+} catch {}
 
 const post = (url: string, body: unknown) =>
   fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
 const inMap = (id: string) => !!N[id] || !!CAP[id.slice(4)];
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-// ---------- rendering answers ----------
 function citation(id: string) {
   if (id.startsWith('cap:')) {
     const cap = CAP[id.slice(4)];
@@ -46,7 +40,6 @@ const inline = (s: string) =>
     .replace(/`([^`]+)`/g, '<code>$1</code>')
     .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
 
-/** Tiny markdown: paragraphs, lists, `code`, **bold**, and [[atlas-id]] as links into the scene. */
 function markdown(src: string) {
   const out: string[] = [];
   let list: 'ol' | 'ul' | null = null;
@@ -88,7 +81,6 @@ function litNote(ids: string[]) {
   return `<div class="lit">● ${ids.length} ${t('lit')} ${relight} ${clear}</div>`;
 }
 
-/** What the viewer is looking at, so "this" in a question has a referent. */
 function aboutNow() {
   const n = view.T[state.sel ?? ''] || view.T[state.focus];
   if (!n || n === view.root) return null;
@@ -110,7 +102,6 @@ export function renderChat() {
 }
 export const focusChat = () => input.focus();
 
-/** Streams /chat into `onEvent` until the agent is done. */
 async function streamChat(req: ChatRequest, onEvent: (e: ChatEvent) => void) {
   const res = await post('/chat', req);
   if (!res.body) throw new Error(String(res.status));
@@ -133,9 +124,7 @@ function rememberSession(id: string) {
   session = id;
   try {
     sessionStorage.setItem('atlasChat', id);
-  } catch {
-    /* no persistence */
-  }
+  } catch {}
 }
 
 async function ask(question: string) {
@@ -186,7 +175,7 @@ async function ask(question: string) {
   body.innerHTML = markdown(answer.body);
   const flow = answer.draft && toFlow(answer.draft, (id) => !!N[id]);
   if (flow?.steps.length) {
-    FLOW[flow.id] = flow;
+    addDraftFlow(flow);
     bot.insertAdjacentHTML('beforeend', draftCard(flow));
   }
   if (answer.show.length) {
@@ -215,9 +204,6 @@ async function saveDraft(button: HTMLButtonElement, id: string) {
   }
 }
 
-// ---------- descriptions on demand ----------
-// Opening a module with no description asks the agent to read it and describe it and its files, once.
-// A failure is retried once (the next render), then left alone.
 export const describing = new Set<string>();
 const failedOnce = new Set<string>();
 const gaveUp = new Set<string>();

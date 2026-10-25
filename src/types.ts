@@ -1,9 +1,5 @@
-// The contract between a project's .atlas folder, the scripts, the server and the viewer.
-
 export type Lang = 'en' | 'pt';
 export type Confidence = 'verified' | 'inferred' | 'generated';
-
-// ---------- <project>/.atlas/atlas.config.json ----------
 
 export interface ModuleRule {
   /** Regex over a file path relative to the source; first matching rule wins. */
@@ -38,13 +34,8 @@ export interface AtlasConfig {
   chat?: { suggestions?: Partial<Record<Lang, string[]>> };
 }
 
-// ---------- text ----------
-// Content fields hold the project's base text; an `<field>_en` twin holds English.
-// The viewer picks by language and falls back to the other.
-
 export type Bilingual<K extends string> = { [P in K]?: string } & { [P in `${K}_en`]?: string };
 
-/** A bilingual field in one language, falling back to the other. */
 export function textOf<K extends string>(
   o: Bilingual<K> | null | undefined,
   k: K,
@@ -65,11 +56,8 @@ export interface Anchor extends Bilingual<'note'> {
 export interface Desc extends Bilingual<'biz' | 'tech'> {
   confidence?: Confidence;
   anchors?: Anchor[];
-  /** Hash of the code the text was written against; differs from the node's hash when stale. */
   describedHash?: string;
 }
-
-// ---------- skeleton (written by skeleton.ts) ----------
 
 export interface FileEntry {
   path: string;
@@ -87,7 +75,6 @@ export interface SkNode {
   parent?: string;
   files: FileEntry[];
   loc: number;
-  // repos
   sha?: string;
   branch?: string;
   role?: string | null;
@@ -105,8 +92,6 @@ export interface Skeleton {
   nodes: SkNode[];
   edges: Edge[];
 }
-
-// ---------- semantic layer (<project>/.atlas/semantic.{ts,mjs}) ----------
 
 export interface Capability extends Bilingual<'name' | 'biz' | 'tech'> {
   id: string;
@@ -184,16 +169,11 @@ export interface SemanticEn {
   flows?: Record<string, { name?: string; biz?: string; steps?: string[] }>;
 }
 
-// ---------- the store the agent writes (<project>/.atlas/*.local.json) ----------
-
 export interface DescriptionsStore {
   nodes: Record<string, Desc>;
   files: Record<string, Desc>;
 }
 
-// ---------- the merged map (build.ts) ----------
-
-/** A skeleton node with what the build adds: its code hash, capability, description, legacy status. */
 export interface MapNode extends SkNode {
   hash: string;
   cap?: string | null;
@@ -201,7 +181,6 @@ export interface MapNode extends SkNode {
   legacy?: string;
 }
 
-/** A description is stale once the code it was written against has changed. */
 export const isStale = (n: MapNode) => !!n.desc && n.desc.describedHash !== n.hash;
 
 export interface Atlas {
@@ -216,8 +195,6 @@ export interface Atlas {
   flows: Flow[];
   legacy: Record<string, LegacyStatus>;
 }
-
-// ---------- what build.ts embeds in the page ----------
 
 export interface PageSource {
   id: string;
@@ -236,8 +213,6 @@ export interface PageData {
   legacy: Record<string, LegacyStatus>;
 }
 
-// ---------- server protocols ----------
-
 export interface ChatRequest {
   message: string;
   session: string | null;
@@ -245,7 +220,6 @@ export interface ChatRequest {
   about: string | null;
 }
 
-/** /chat streams one JSON object per line. */
 export type ChatEvent =
   | { type: 'status'; text: string }
   | { type: 'delta'; text: string }
@@ -264,7 +238,6 @@ export interface SaveFlowResponse {
   log: string[];
 }
 
-/** What a drafted flow looks like when the agent writes it (both languages inline). */
 export interface FlowDraft {
   id?: string;
   name_en?: string;

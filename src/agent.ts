@@ -1,8 +1,5 @@
-// Talking to the user's Claude Code headless: what to ask it, with which flags, and how to read
-// what it prints. Pure; serve.ts owns the processes.
 import type { ChatEvent, Lang } from './types.ts';
 
-/** Only read tools exist for the agent, and no MCP servers, so it starts fast and can't wander. */
 export const chatFlags = (prompt: string, system: string, session: string | null) => [
   ...['-p', prompt, '--output-format', 'stream-json', '--verbose', '--include-partial-messages'],
   ...['--tools', 'Read', 'Grep', 'Glob', '--allowedTools', 'Read', 'Grep', 'Glob'],
@@ -10,7 +7,6 @@ export const chatFlags = (prompt: string, system: string, session: string | null
   ...(session ? ['--resume', session] : []),
 ];
 
-/** Describing is a cheaper job: one shot, read-only, a faster model. */
 export const describeFlags = (prompt: string) => [
   ...['-p', prompt, '--output-format', 'json', '--tools', 'Read', '--allowedTools', 'Read'],
   ...['--strict-mcp-config', '--model', 'sonnet', '--effort', 'low'],
@@ -44,7 +40,6 @@ Documenting a flow (writing down a named, step-by-step path through EXISTING cod
 ${about ? `The viewer is currently looking at ${about}; "this"/"isso" refers to it.` : ''}`;
 }
 
-/** The module's section of the agent context, from its heading to the next one. */
 export function contextSection(context: string, id: string) {
   const start = context.indexOf(`### ${id}\n`);
   return start >= 0 ? context.slice(start, context.indexOf('\n###', start + 4)) : '';
@@ -74,7 +69,6 @@ _pt fields in Brazilian Portuguese. Use the file paths exactly as listed.`;
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null;
 const str = (v: unknown) => (typeof v === 'string' ? v : undefined);
 
-/** One line of the tool use, e.g. `read packages/x/src/a.ts`. */
 function toolStatus(name: string, input: Record<string, unknown>, project: string) {
   const where = (str(input.file_path) || str(input.path) || '').replace(project + '/', '');
   if (name === 'Read') return `read ${where}`;
@@ -83,10 +77,6 @@ function toolStatus(name: string, input: Record<string, unknown>, project: strin
   return name;
 }
 
-/**
- * Reads one line of Claude Code's stream-json output into what the viewer shows: text as it
- * arrives, a status line per tool call, and the final answer. Anything else is ignored.
- */
 export function readAgentLine(line: string, project: string): ChatEvent[] {
   let ev: unknown;
   try {
@@ -116,7 +106,6 @@ export function readAgentLine(line: string, project: string): ChatEvent[] {
   return [];
 }
 
-/** The JSON inside the first fenced block, or the outermost {…} when the agent forgot the fence. */
 export function fencedJson(text: string): unknown {
   const fenced = text.match(/```(?:atlas-desc|json)?\s*([\s\S]*?)```/);
   return JSON.parse(fenced ? fenced[1] : text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1));

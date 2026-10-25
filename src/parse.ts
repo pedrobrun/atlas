@@ -1,5 +1,3 @@
-// Turning JSON from outside (config files, request bodies, the agent's output, the local store)
-// into the typed shapes the rest of the code trusts. Each parser throws on what it can't use.
 import type {
   AtlasConfig,
   ChatRequest,
@@ -114,7 +112,6 @@ export function parseFlow(v: unknown, what = 'flow'): Flow {
 
 export const parseFlows = (v: unknown) => array(v, 'flows.local.json', parseFlow);
 
-/** The agent's description of a module and its files, each in English and Portuguese. */
 export interface DescDraft {
   biz_en?: string;
   biz_pt?: string;

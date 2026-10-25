@@ -1,4 +1,3 @@
-// Small HTML fragments the panels and the chat share.
 import type { Confidence, Desc, Flow, Invariant } from '../types.ts';
 import { hex, modLabel, REPO_COLOR, repoOf } from './data.ts';
 import { esc } from './dom.ts';
@@ -26,14 +25,11 @@ export const guardChip = (g: Invariant['guard']) => chip(t(GUARD[g].key), GUARD[
 export const plainChip = (text: string, color?: number) =>
   `<span class="chip"${color === undefined ? '' : ` style="color:${hex(color)}"`}>${text}</span>`;
 
-/** The repo's color as a small square. */
 export const repoDot = (repo: string) =>
   `<span class="dot" style="background:${hex(REPO_COLOR[repo] ?? 0x888888)}"></span>`;
 
-/** A titled section, or nothing when it has no body. */
 export const section = (title: string, body: string) => (body ? `<h3>${title}</h3>${body}` : '');
 
-/** The plain description first, the technical one under it. */
 export function ledes(d: Desc | null | undefined) {
   if (!d) return `<p class="lede none">${t('noDesc')}</p>`;
   const plain = L(d, 'biz');
@@ -44,7 +40,6 @@ export function ledes(d: Desc | null | undefined) {
   );
 }
 
-/** A link to a module, with its repo color and an optional count. */
 export function moduleLink(id: string, count?: number) {
   const tally = count === undefined ? '' : `<small>${count}</small>`;
   return `<button class="nb" data-go="${esc(id)}">${repoDot(repoOf(id))}${esc(modLabel(id))}${tally}</button>`;

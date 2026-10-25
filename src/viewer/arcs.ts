@@ -1,4 +1,3 @@
-// Dependency arcs (for the hovered or opened module) and the lit path of a flow.
 import * as THREE from 'three';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { D } from './data.ts';
@@ -15,13 +14,11 @@ const FLOW_COLOR = 0xe5487f;
 
 const group = new THREE.Group();
 scene.add(group);
-/** Each arc's pulse travels along its curve, so the direction of the dependency shows. */
 const pulses: { curve: THREE.QuadraticBezierCurve3; pulse: THREE.Mesh; offset: number }[] = [];
 onFrame.push((t) => {
   for (const p of pulses) p.pulse.position.copy(p.curve.getPoint((t * 0.45 + p.offset) % 1));
 });
 
-/** The nearest visible box for a module: the module itself, or the box hiding it. */
 function visibleProxy(id: string): TreeNode | null {
   for (let n: TreeNode | null = view.T[id]; n && n.kind !== 'root'; n = n.parent) {
     const role = view.roles[n.id];
@@ -40,7 +37,6 @@ function clear() {
   pulses.length = 0;
 }
 
-// Arcs scale with what is in view, so they read the same zoomed in or out.
 function viewScale() {
   const f = state.flow ? view.root : view.T[state.focus] || view.root;
   return Math.min(1.2, Math.max(0.22, Math.max(f.w || 40, f.d || 40) / 14));
@@ -79,7 +75,6 @@ function drawFlowPath() {
   }
 }
 
-/** The module whose dependencies to draw: hovered, else the selected or opened one. */
 function arcSource() {
   const candidates = [view.hovered, view.T[state.sel ?? ''], view.T[state.focus]];
   return candidates.find((n) => n?.kind === 'module') ?? null;
@@ -90,7 +85,6 @@ export function drawArcs() {
   if (state.flow) return drawFlowPath();
   const src = arcSource();
   if (!src) return;
-  // Edges leaving or entering the module, gathered per visible target.
   const mine = new Set(modulesUnder(src));
   type Link = { weight: number; modules: Set<string> };
   const outgoing = new Map<TreeNode, Link>();
@@ -107,7 +101,6 @@ export function drawArcs() {
     link.modules.add(other);
     links.set(target, link);
   }
-  // A box standing in for hidden modules is named, with how many of them it hides.
   const tag = (n: TreeNode, l: Link) =>
     n.kind === 'module' ? null : `${n.name}${l.modules.size > 1 ? ` · ${l.modules.size}` : ''}`;
   const here = topOf(src);

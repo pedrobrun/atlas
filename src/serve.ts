@@ -1,6 +1,3 @@
-// Local server: serves a project's map and answers chat questions by running the user's
-// own Claude Code headless in the project, read-only, with the map as context.
-// Usage: node src/serve.ts <project> [port]   (the project has a .atlas folder; see README)
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -65,8 +62,6 @@ function chat(res: http.ServerResponse, { message, session, lang, about }: ChatR
   });
 }
 
-// When someone opens a module with no description, the agent reads its files and describes the
-// module and each file. Cached in descriptions.local.json, keyed to the hash of the code it read.
 const toDesc = (o: DescDraft, describedHash: string): Desc => ({
   biz: o.biz_pt,
   biz_en: o.biz_en,
@@ -100,7 +95,7 @@ function describe(res: http.ServerResponse, { id }: DescribeRequest) {
         if (draft) files[f.path] = store.files[f.path] = toDesc(draft, f.hash);
       }
       fs.writeFileSync(paths.descriptions, JSON.stringify(store, null, 2));
-      rebuild(); // so a reload keeps them
+      rebuild();
       sendJson(res, 200, { module: got.module ? store.nodes[id] : null, files } satisfies DescribeResponse);
     } catch (e) {
       process.stderr.write(`describe ${id} failed: ${e}\n${out.slice(-400)}\n`);
@@ -110,7 +105,6 @@ function describe(res: http.ServerResponse, { id }: DescribeRequest) {
   });
 }
 
-// Saved flows are kept next to the semantic layer and the page is rebuilt.
 function saveFlow(res: http.ServerResponse, flow: Flow) {
   const flows = parseFlows(readJsonOr<unknown>(paths.flows, []));
   const i = flows.findIndex((f) => f.id === flow.id);
@@ -128,7 +122,6 @@ function saveFlow(res: http.ServerResponse, flow: Flow) {
   });
 }
 
-// Each route parses its body first; a body it can't use is a 400 with the reason.
 const routes: Record<string, (res: http.ServerResponse, body: unknown) => void> = {
   '/chat': (res, body) => chat(res, parseChatRequest(body)),
   '/describe': (res, body) => describe(res, parseDescribeRequest(body)),

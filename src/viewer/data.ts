@@ -1,4 +1,3 @@
-// The map build.ts embedded in the page, and lookups over it.
 import type { Flow, MapNode, PageData } from '../types.ts';
 
 export const D: PageData = JSON.parse(document.getElementById('atlas-data')!.textContent!);
@@ -7,8 +6,10 @@ export const N: Record<string, MapNode> = Object.fromEntries(D.nodes.map((n) => 
 export const kids: Record<string, string[]> = {};
 for (const n of D.nodes) if (n.parent) (kids[n.parent] ??= []).push(n.id);
 export const CAP = Object.fromEntries(D.caps.map((c) => [c.id, c]));
-/** Includes drafts from the chat while they are previewed. */
 export const FLOW: Record<string, Flow> = Object.fromEntries(D.flows.map((f) => [f.id, f]));
+export const addDraftFlow = (flow: Flow) => {
+  FLOW[flow.id] = flow;
+};
 export const modules = D.nodes.filter((n) => n.kind === 'module');
 
 export const repoOf = (id: string): string => {
@@ -21,11 +22,9 @@ export const isUnder = (id: string, anc: string) => {
     if (n.id === anc) return true;
   return false;
 };
-/** Drop an npm scope from package names. */
 export const short = (s: string) => s.replace(/^@[^/]+\//, '');
 export const modLabel = (id: string) => (N[id] ? `${short(N[N[id].parent!].name)} › ${N[id].name}` : id);
 
-// Sources (repos) come from the project's config; colors fall back to a palette.
 const PALETTE = [0x8b74ff, 0x3b9ae8, 0xe3a23b, 0x2fb57c, 0xe25d8a, 0x6c7a89];
 export const SOURCES = D.config.sources;
 export const repoName: Record<string, string> = Object.fromEntries(SOURCES.map((x) => [x.id, x.name]));
