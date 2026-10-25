@@ -1,7 +1,7 @@
 import { FLOW, modLabel } from './data.ts';
 import { save, state } from './state.ts';
 import type { Mark, TreeNode } from './tree.ts';
-import { countLoc, ENTER, inside, view } from './tree.ts';
+import { countLoc, dock, ENTER, inside, view } from './tree.ts';
 import type { Role } from './roles.ts';
 import { computeRoles, litSet, ROLE, stepModules } from './roles.ts';
 import { frameFocus, setGlow } from './scene.ts';
@@ -14,6 +14,7 @@ export function applyState(instant = false) {
   const steps = stepModules();
   const lit = litSet();
   const focus = view.T[state.focus] || view.root;
+  dock(state.flow ? view.root : focus);
   for (const n of Object.values(view.T)) {
     if (!n.gfx) continue;
     const role = roles[n.id];
@@ -42,6 +43,10 @@ function markOf(id: string, steps: string[], lit: Set<string>): Mark {
 
 function labelFor(n: TreeNode, role: Role, focus: TreeNode, lit: Set<string>, steps: string[]) {
   const isChildOfFocus = n.parent === focus || (n.parent?.kind === 'group' && n.parent.parent === focus);
+  if (n.kind === 'external' && !state.flow) {
+    if (lit.size) return lit.has(n.id) ? { cls: 'lab hl ext', text: n.name } : null;
+    return role === 'closed' || role === 'context' ? { cls: 'lab ext', text: n.name } : null;
+  }
   if (lit.size && n.kind === 'module') return lit.has(n.id) ? { cls: 'lab hl small', text: n.name } : null;
   if (lit.size && role === 'district' && n.parent !== view.root) return null;
   if (state.flow) {

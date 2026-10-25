@@ -7,7 +7,7 @@ import { ancestors, view } from './tree.ts';
 import { applyState, goTo, goUp, showFlow, stepBy } from './nav.ts';
 import { buildScene, fitView, frameFocus } from './scene.ts';
 import { captionHtml, detailsHtml } from './cards.ts';
-import { describing, ensureDescribed, focusChat, renderChat } from './chat.ts';
+import { describeStatus, ensureDescribed, focusChat, renderChat } from './chat.ts';
 
 const card = byId('card');
 const translate = (key: string | undefined) => (key && isKey(key) ? t(key) : '');
@@ -53,7 +53,7 @@ export function renderUI() {
 
 export function renderCaption() {
   const caption = byId('caption');
-  caption.innerHTML = captionHtml(describing);
+  caption.innerHTML = captionHtml(describeStatus);
   caption.hidden = !caption.innerHTML || state.panel === 'details';
 }
 

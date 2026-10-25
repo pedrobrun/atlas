@@ -11,6 +11,7 @@ export const addDraftFlow = (flow: Flow) => {
   FLOW[flow.id] = flow;
 };
 export const modules = D.nodes.filter((n) => n.kind === 'module');
+export const externals = D.nodes.filter((n) => n.kind === 'external');
 
 export const repoOf = (id: string): string => {
   let n: MapNode | undefined = N[id];
@@ -23,7 +24,11 @@ export const isUnder = (id: string, anc: string) => {
   return false;
 };
 export const short = (s: string) => s.replace(/^@[^/]+\//, '');
-export const modLabel = (id: string) => (N[id] ? `${short(N[N[id].parent!].name)} › ${N[id].name}` : id);
+export function modLabel(id: string) {
+  const n = N[id];
+  const parent = n?.parent ? N[n.parent] : undefined;
+  return n ? (parent ? `${short(parent.name)} › ${n.name}` : n.name) : id;
+}
 
 const PALETTE = [0x8b74ff, 0x3b9ae8, 0xe3a23b, 0x2fb57c, 0xe25d8a, 0x6c7a89];
 export const SOURCES = D.config.sources;
@@ -43,4 +48,8 @@ export const LEGACY_COLOR: Record<string, number> = {
 export const CAP_COLOR = [
   0xc9b8f2, 0x9fd3e6, 0xf2b8a8, 0xa9d9a4, 0xf3cf86, 0xb7c3f0, 0xe6b3d6, 0x9fdccb, 0xd8cfbf,
 ];
+const SYSTEM_PALETTE = [0xd9822b, 0x3d8fb8, 0x8a6bd1, 0x2f9e7a, 0xc75b7a, 0x9b8a4a];
+const systemKinds = [...new Set(externals.map((e) => e.system ?? ''))];
+export const systemColor = (n: MapNode) =>
+  SYSTEM_PALETTE[systemKinds.indexOf(n.system ?? '') % SYSTEM_PALETTE.length];
 export const hex = (c: number) => '#' + c.toString(16).padStart(6, '0');

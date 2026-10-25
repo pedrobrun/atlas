@@ -13,6 +13,7 @@ const repos: Record<string, Record<string, string>> = {
     'src/app/api/orders/route.ts': `import { addItem } from '@/lib/cart';\nimport { invoice } from '@acme/billing/invoices';\nexport const POST = () => invoice(addItem());\n`,
     'src/app/page.tsx': `import { Button } from '../ui/button';\nexport default () => Button;\n`,
     'src/lib/cart.ts': `export const addItem = () => 1;\n`,
+    'src/lib/stock.ts': `const base = process.env.WAREHOUSE_URL;\nexport const left = (sku: string) => fetch(\`\${base}/stock/\${sku}\`);\nexport const post = () => fetch('https://ledger.example.com/entries');\n`,
     'src/ui/button.tsx': `export const Button = 'button';\n`,
     'src/ui/button.test.tsx': `throw new Error('tests are skipped');\n`,
   },
@@ -25,6 +26,7 @@ const repos: Record<string, Record<string, string>> = {
     'src/tax.ts': `export const total = (n: number) => n * 1.2;\n`,
     'src/invoices/index.ts': `import { total } from '../tax';\nimport { render } from './pdf';\nexport const invoice = (n: number) => render(total(n));\n`,
     'src/invoices/pdf.ts': `export const render = (n: number) => String(n);\n`,
+    'src/payouts.ts': `import Stripe from 'stripe';\nconst stripe = new Stripe(process.env.STRIPE_KEY ?? '');\nexport const pay = (cents: number) => stripe.payouts.create({ amount: cents, currency: 'usd' });\n`,
   },
 };
 
@@ -51,6 +53,12 @@ const config = {
       role: 'legacy',
       modules: [{ match: '^src/([^/.]+)', area: 'core', areaName: '@acme/billing', module: '$1' }],
     },
+  ],
+  externals: [
+    { id: 'stripe', name: 'Stripe', kind: 'payments', packages: ['stripe'] },
+    { id: 'warehouse', name: 'Warehouse API', kind: 'api', env: ['WAREHOUSE_'] },
+    { id: 'ledger', name: 'Ledger', kind: 'api', code: ['ledger\\.example\\.com'] },
+    { id: 'mail', name: 'Mail', kind: 'email', packages: ['@acme-mail/*'] },
   ],
   chat: { suggestions: { en: ['How does checkout work?'] } },
 };

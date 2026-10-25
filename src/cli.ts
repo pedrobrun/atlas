@@ -105,21 +105,42 @@ async function status(start: string) {
     described: modules.filter((n) => n.desc).length,
     stale: modules.filter(isStale).map((n) => n.id),
     withoutCapability: modulesWithoutCapability,
+    systemsNeverCalled: atlas.nodes
+      .filter((n) => n.kind === 'external' && !atlas.edges.some((e) => e.to === n.id))
+      .map((n) => n.id),
     unknownIds,
   };
   console.log(JSON.stringify(report, null, 2));
 }
 
-async function refresh(start: string) {
+const PARALLEL = 4;
+
+async function undescribedModules(project: string) {
+  const { atlas } = await loadAtlas(project);
+  return atlas.nodes
+    .filter((n) => n.kind === 'module' && (!n.desc || n.files.some((f) => !f.desc)))
+    .map((n) => n.id);
+}
+
+async function refresh(start: string, all: boolean) {
   const project = projectOrExit(start);
   const lock = path.join(atlasPaths(project).out, 'refresh.lock');
   const holder = Number(fs.existsSync(lock) && fs.readFileSync(lock, 'utf8'));
-  if (holder && isAlive(holder)) return;
+  if (holder && isAlive(holder)) return console.error(`atlas: a refresh is already running (pid ${holder}).`);
   fs.writeFileSync(lock, String(process.pid));
   try {
-    for (const id of (await staleModules(project)).slice(0, REFRESH_LIMIT)) {
-      await describeModule(project, id)?.catch((e: Error) => console.error(e.message));
-    }
+    const stale = await staleModules(project);
+    const queue = all
+      ? [...new Set([...stale, ...(await undescribedModules(project))])]
+      : stale.slice(0, REFRESH_LIMIT);
+    let done = 0;
+    const worker = async () => {
+      for (let id = queue.shift(); id; id = queue.shift()) {
+        await describeModule(project, id)?.catch((e: Error) => console.error(e.message));
+        console.error(`refresh: ${++done} described (${id})`);
+      }
+    };
+    await Promise.all(Array.from({ length: all ? PARALLEL : 1 }, worker));
     run('build', project);
   } finally {
     fs.rmSync(lock, { force: true });
@@ -178,20 +199,21 @@ const USAGE = `atlas <command> [dir]
   open [dir]       build the map, start the local server if needed, open it in the browser
   build [dir]      skeleton + semantic merge -> .atlas/out/atlas.html and atlas-context.md
   status [dir]     modules, descriptions, stale ones, ids the semantic layer gets wrong
-  refresh [dir]    rewrite out-of-date module descriptions with your Claude Code
+  refresh [dir] [--all]  rewrite out-of-date descriptions; --all also writes missing ones, 4 at a time
   serve [dir] [port]
   hook session-start|stop   (called by the plugin's hooks)
 
 [dir] defaults to the current directory; the project is the nearest folder with .atlas/atlas.config.json.`;
 
-const [command, arg, extra] = process.argv.slice(2);
+const flags = new Set(process.argv.slice(2).filter((a) => a.startsWith('--')));
+const [command, arg, extra] = process.argv.slice(2).filter((a) => !a.startsWith('--'));
 const dir = arg ?? '.';
 if (command === 'open') await open(dir);
 else if (command === 'build') {
   const project = projectOrExit(dir);
   if (!run('skeleton', project) || !run('build', project)) process.exit(1);
 } else if (command === 'status') await status(dir);
-else if (command === 'refresh') await refresh(dir);
+else if (command === 'refresh') await refresh(dir, flags.has('--all'));
 else if (command === 'serve')
   spawnSync(process.execPath, [script('serve'), projectOrExit(dir), extra ?? '4317'], { stdio: 'inherit' });
 else if (command === 'hook') await hook(arg);

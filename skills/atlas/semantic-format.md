@@ -2,7 +2,7 @@
 
 The meaning layer of an Atlas map. `atlas build` checks it field by field and names the field it can't use, so a mistake shows up as an error to fix, not a broken page.
 
-Every id it mentions must exist in `.atlas/out/skeleton.json`. Module ids look like `web/api/orders` (`<source>/<area>/<module>`).
+Every id it mentions must exist in `.atlas/out/skeleton.json`. Module ids look like `web/api/orders` (`<source>/<area>/<module>`). External systems declared in `atlas.config.json` are `ext:<id>`, such as `ext:stripe`.
 
 Every key is optional, but a useful map has `system`, `caps`, a `desc` for every module, and a few `flows`.
 
@@ -21,6 +21,10 @@ Every key is optional, but a useful map has `system`, `caps`, a `desc` for every
     }
   ],
   "desc": {
+    "ext:stripe": {
+      "biz": "Charges the customer's card.",
+      "tech": "Payment intents through the stripe SDK, created by web/api/orders."
+    },
     "web/api/orders": {
       "biz": "Takes the order once the customer pays.",
       "tech": "Validates the cart, reserves stock, and asks billing for an invoice.",
@@ -74,14 +78,14 @@ Every key is optional, but a useful map has `system`, `caps`, a `desc` for every
 
 - **`system`** is a description of the whole project: `biz`, `tech`.
 - **`caps`** are capabilities, the first level a reader sees. Each has `id`, `name`, optional `biz` and `tech`, and `rules`, regexes over module ids. A module belongs to the first capability whose rule matches it, and `atlas build` lists the modules none of them claims.
-- **`desc`** maps a node id (usually a module) to its description:
+- **`desc`** maps a node id, usually a module or an `ext:` system, to its description:
   - `biz` and `tech` hold the text;
   - `confidence` is `verified`, `inferred` or `generated`;
   - `anchors` are `{ path, line, note }` items, with paths relative to the project folder.
 
   `atlas build` adds a `describedHash` to each entry. That is how the map knows a description is out of date when its code changes. Leave the field alone, or delete it after rewriting an entry by hand.
 
-- **`flows`** are named paths through existing code. Each has `id`, `name`, optional `biz`, a `confidence`, and `steps`. A step is `{ unit, text, anchor }`, where `unit` is a module id and `anchor` is `"path:line"` or `null`.
+- **`flows`** are named paths through existing code. Each has `id`, `name`, optional `biz`, a `confidence`, and `steps`. A step is `{ unit, text, anchor }`, where `unit` is a module id or an `ext:` system and `anchor` is `"path:line"` or `null`.
 - **`invariants`** are rules that must not break. Each has `id`, `name`, optional `biz`, a `guard`, a `guardPath` and a `scope`:
   - `guard` says what enforces the rule: `test`, `type`, `partial` or `none`;
   - `guardPath` is the file that does it, or `""`;

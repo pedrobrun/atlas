@@ -1,0 +1,113 @@
+{
+  "name": "Northwind Procurement",
+  "language": "en",
+  "sources": [
+    {
+      "id": "portal",
+      "dir": "portal",
+      "aliases": { "@/": "src/" },
+      "modules": [
+        { "match": "^src/app/api/([^/]+)/", "area": "api", "module": "$1" },
+        { "match": "^src/app/layout\\.tsx$", "area": "pages", "module": "shell" },
+        { "match": "^src/app/([^/]+)/", "area": "pages", "module": "$1" },
+        { "match": "^src/components/", "area": "ui", "module": "components" },
+        { "match": "^src/(lib/session|middleware)\\.ts$", "area": "lib", "module": "session" },
+        { "match": "^src/lib/", "area": "lib", "module": "backend-clients" }
+      ]
+    },
+    {
+      "id": "procure-api",
+      "dir": "procure-api",
+      "aliases": { "@/": "src/" },
+      "modules": [
+        { "match": "^src/types/docusign", "area": "domain", "module": "contracts" },
+        {
+          "match": "^src/(requisitions|approvals|budgets|vendors|purchase-orders|contracts|catalog)/",
+          "area": "domain",
+          "module": "$1"
+        },
+        { "match": "^src/(audit|notifications|queue|internal|db)/", "area": "platform", "module": "$1" },
+        { "match": "^src/(http/|server\\.ts|main\\.ts|errors\\.ts)", "area": "platform", "module": "http" }
+      ]
+    },
+    {
+      "id": "invoicing",
+      "dir": "invoicing",
+      "aliases": { "@/": "src/" },
+      "modules": [
+        { "match": "^src/(purchase-orders|receipts)/", "area": "ap", "module": "po-mirror" },
+        { "match": "^src/jobs/payment-scheduler", "area": "ap", "module": "payments" },
+        { "match": "^src/(ingestion|matching|exceptions|payments|invoices)/", "area": "ap", "module": "$1" },
+        { "match": "^src/(queue|db|clients)/", "area": "platform", "module": "$1" },
+        { "match": "^src/(http/|main\\.ts|errors\\.ts)", "area": "platform", "module": "http" }
+      ]
+    },
+    {
+      "id": "erp-sync",
+      "dir": "erp-sync",
+      "aliases": { "@/": "src/" },
+      "modules": [
+        { "match": "^src/(steps/|main\\.ts)", "area": "sync", "module": "run" },
+        { "match": "^src/netsuite/", "area": "sync", "module": "netsuite" },
+        { "match": "^src/sources/", "area": "sync", "module": "sources" },
+        { "match": "^src/(store|db)/", "area": "sync", "module": "ledger" }
+      ]
+    },
+    {
+      "id": "contracts",
+      "dir": "contracts",
+      "aliases": { "@/": "src/" },
+      "modules": [
+        { "match": "^src/money\\.ts$", "area": "schemas", "module": "money" },
+        { "match": "^src/events\\.ts$", "area": "schemas", "module": "events" },
+        { "match": "^src/", "area": "schemas", "module": "payloads" }
+      ]
+    },
+    {
+      "id": "legacy-approvals",
+      "dir": "legacy-approvals",
+      "role": "legacy",
+      "modules": [
+        { "match": "^src/(routes/|views/|server\\.js)", "area": "app", "module": "approve-by-link" },
+        { "match": "^src/lib/link-token", "area": "app", "module": "link-token" },
+        { "match": "^src/lib/procure-client", "area": "app", "module": "procure-client" }
+      ]
+    }
+  ],
+  "externals": [
+    { "id": "postgres", "name": "Postgres", "kind": "database", "packages": ["pg"], "env": ["DATABASE_URL"] },
+    {
+      "id": "sqs",
+      "name": "AWS SQS",
+      "kind": "queue",
+      "packages": ["@aws-sdk/client-sqs"],
+      "env": ["PROCUREMENT_EVENTS_QUEUE_URL"]
+    },
+    {
+      "id": "s3",
+      "name": "AWS S3",
+      "kind": "storage",
+      "packages": ["@aws-sdk/client-s3"],
+      "env": ["INVOICE_BUCKET"]
+    },
+    { "id": "openai", "name": "OpenAI", "kind": "ai", "packages": ["openai"], "env": ["OPENAI_"] },
+    { "id": "stripe", "name": "Stripe", "kind": "payments", "packages": ["stripe"], "env": ["STRIPE_"] },
+    {
+      "id": "sendgrid",
+      "name": "SendGrid",
+      "kind": "email",
+      "packages": ["@sendgrid/mail"],
+      "env": ["SENDGRID_", "INBOUND_EMAIL_"]
+    },
+    { "id": "slack", "name": "Slack", "kind": "chat", "packages": ["@slack/web-api"], "env": ["SLACK_"] },
+    {
+      "id": "docusign",
+      "name": "DocuSign",
+      "kind": "e-signature",
+      "packages": ["docusign-esign"],
+      "env": ["DOCUSIGN_"]
+    },
+    { "id": "netsuite", "name": "NetSuite", "kind": "erp", "env": ["NETSUITE_"] },
+    { "id": "sso", "name": "SSO gateway", "kind": "identity", "env": ["SSO_LOGIN_URL", "SESSION_SECRET"] }
+  ]
+}

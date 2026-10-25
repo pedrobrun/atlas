@@ -1,0 +1,1568 @@
+{
+  "system": {
+    "biz": "Northwind Supply's internal procurement platform. Employees request purchases, managers and finance approve them against cost-center budgets, buyers issue purchase orders, and accounts payable matches supplier invoices to those orders and pays vendors. NetSuite stays the system of record for the books.",
+    "tech": "Six packages in a pnpm workspace: a Next.js portal acting as a BFF, the Fastify procure-api over Postgres, the invoicing worker fed by an SQS FIFO outbox, the nightly erp-sync job that talks to NetSuite over REST, shared zod contracts, and a legacy Express app that serves approve-by-link from emails."
+  },
+  "caps": [
+    {
+      "id": "requesting",
+      "name": "Purchase requests",
+      "biz": "Employees describe what they need, price it and send it for approval.",
+      "rules": ["^portal/(pages|api)/requ", "^portal/ui/", "^procure-api/domain/(requisitions|catalog)$"]
+    },
+    {
+      "id": "approvals",
+      "name": "Approvals",
+      "biz": "Rule-driven approval chains, delegation, SLA escalation and the notifications that ask people to decide.",
+      "rules": [
+        "^portal/(pages|api)/approvals$",
+        "^procure-api/domain/approvals$",
+        "^procure-api/platform/notifications$",
+        "^legacy-approvals/"
+      ]
+    },
+    {
+      "id": "budgets",
+      "name": "Budgets",
+      "biz": "Cost-center budgets: money is reserved on approval, released on cancel and consumed when invoices match.",
+      "rules": ["^portal/pages/budgets$", "^procure-api/domain/budgets$"]
+    },
+    {
+      "id": "purchasing",
+      "name": "Purchase orders",
+      "biz": "Turning approved requests into purchase orders, amending them and recording goods received.",
+      "rules": ["^portal/pages/purchase-orders$", "^procure-api/domain/purchase-orders$"]
+    },
+    {
+      "id": "vendors",
+      "name": "Vendors and contracts",
+      "biz": "Onboarding suppliers, scoring their risk, holding bank and payout details, and getting contracts signed.",
+      "rules": ["^portal/(pages|api)/vendors$", "^procure-api/domain/(vendors|contracts)$"]
+    },
+    {
+      "id": "accounts-payable",
+      "name": "Invoice matching",
+      "biz": "Getting supplier invoices in, reading them, and checking them against the PO and what was received before anyone pays.",
+      "rules": [
+        "^portal/(pages|api)/invoices$",
+        "^invoicing/ap/(ingestion|matching|exceptions|invoices|po-mirror)$"
+      ]
+    },
+    {
+      "id": "payments",
+      "name": "Vendor payments",
+      "biz": "The daily run that pays matched, budget-confirmed invoices to vendors, exactly once each.",
+      "rules": ["^invoicing/ap/payments$"]
+    },
+    {
+      "id": "erp",
+      "name": "ERP sync",
+      "biz": "Keeping NetSuite and the platform in step every night: reference data in, POs and paid bills out.",
+      "rules": ["^erp-sync/"]
+    },
+    {
+      "id": "platform",
+      "name": "Platform and shared contracts",
+      "biz": "What every service leans on: auth, the database, the audit log, the event outbox, internal endpoints and the shared payload schemas.",
+      "rules": [
+        "^procure-api/platform/",
+        "^invoicing/platform/",
+        "^contracts/",
+        "^portal/lib/",
+        "^portal/pages/shell$"
+      ]
+    }
+  ],
+  "desc": {
+    "ext:postgres": {
+      "biz": "Each service keeps its own data in its own Postgres database: procure-api the procurement records, invoicing the invoices and payments, erp-sync its sync ledger.",
+      "tech": "Plain pg pools with explicit transactions; BIGINT money columns are parsed as safe JS integers, and advisory locks keep scheduled jobs single-runner.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "procure-api/src/db/pool.ts",
+          "line": 7,
+          "note": "INT8 parser refuses unsafe integers"
+        }
+      ],
+      "describedHash": "da39a3ee"
+    },
+    "ext:sqs": {
+      "biz": "Carries procurement events (PO issued, amended, cancelled, goods received) from procure-api to invoicing so invoicing keeps working when procure-api is down.",
+      "tech": "One FIFO queue, procurement-events.fifo; MessageGroupId is the PO, MessageDeduplicationId the event id, and a redrive policy moves poison messages to a DLQ.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "procure-api/src/queue/sqs-publisher.ts",
+          "line": 18,
+          "note": "publish with group and dedup ids"
+        },
+        {
+          "path": "invoicing/src/queue/sqs-consumer.ts",
+          "line": 40,
+          "note": "long-polling consumer loop"
+        }
+      ],
+      "describedHash": "da39a3ee"
+    },
+    "ext:s3": {
+      "biz": "Stores the original PDF of every supplier invoice.",
+      "tech": "Content-addressed keys (invoices/YYYY/MM/<sha256>.pdf) with KMS server-side encryption, written by the ingestion module.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "invoicing/src/ingestion/pdf-store.ts",
+          "line": 27,
+          "note": "storeInvoicePdf"
+        }
+      ],
+      "describedHash": "da39a3ee"
+    },
+    "ext:openai": {
+      "biz": "Reads invoice PDFs and pulls out vendor, PO number, lines and totals.",
+      "tech": "Chat completions with the PDF attached and JSON mode at temperature 0; the reply is validated with a zod schema before it is stored.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "invoicing/src/ingestion/extractor.ts",
+          "line": 15,
+          "note": "extractInvoiceFields"
+        }
+      ],
+      "describedHash": "da39a3ee"
+    },
+    "ext:stripe": {
+      "biz": "Pays vendors.",
+      "tech": "Stripe Connect transfers to each vendor's connected account, with an idempotency key derived only from the invoice id.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "invoicing/src/payments/stripe-payouts.ts",
+          "line": 22,
+          "note": "createVendorTransfer"
+        }
+      ],
+      "describedHash": "da39a3ee"
+    },
+    "ext:sendgrid": {
+      "biz": "Sends approval and status emails, and receives the emails suppliers send their invoices to.",
+      "tech": "@sendgrid/mail for outbound mail from procure-api; Inbound Parse posts emails to invoicing's /ingest/email, authenticated by a shared secret in the URL.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "procure-api/src/notifications/email.ts",
+          "line": 23,
+          "note": "approval email with approve/reject links"
+        },
+        {
+          "path": "invoicing/src/ingestion/ingest.routes.ts",
+          "line": 14,
+          "note": "Inbound Parse webhook"
+        }
+      ],
+      "describedHash": "da39a3ee"
+    },
+    "ext:slack": {
+      "biz": "Pings approvers and requesters by DM and posts overdue approvals to an escalations channel.",
+      "tech": "@slack/web-api chat.postMessage with a Block Kit card linking to the portal.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "procure-api/src/notifications/slack.ts",
+          "line": 15,
+          "note": "sendApprovalDm"
+        }
+      ],
+      "describedHash": "da39a3ee"
+    },
+    "ext:docusign": {
+      "biz": "Gets vendor contracts signed.",
+      "tech": "docusign-esign with JWT user auth creates envelopes; DocuSign Connect calls back a public webhook verified by HMAC.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "procure-api/src/contracts/docusign-client.ts",
+          "line": 49,
+          "note": "sendForSignature"
+        },
+        {
+          "path": "procure-api/src/contracts/contract.routes.ts",
+          "line": 40,
+          "note": "Connect webhook"
+        }
+      ],
+      "describedHash": "da39a3ee"
+    },
+    "ext:netsuite": {
+      "biz": "The company ERP and the source of truth for cost centers, annual budgets and the chart of accounts; receives POs, vendor bills and payments.",
+      "tech": "REST record API and SuiteQL over plain fetch with OAuth 1.0 token-based auth; writes carry X-NetSuite-Idempotency-Key and upsert by external id.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "erp-sync/src/netsuite/client.ts",
+          "line": 39,
+          "note": "netsuiteRequest"
+        }
+      ],
+      "describedHash": "da39a3ee"
+    },
+    "ext:sso": {
+      "biz": "The company single sign-on that logs users into the portal.",
+      "tech": "The gateway mints a signed nw_session cookie (base64url JSON + HMAC-SHA256) that the portal verifies with SESSION_SECRET; unauthenticated users are redirected to SSO_LOGIN_URL.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "portal/src/lib/session.ts",
+          "line": 24,
+          "note": "readSession"
+        }
+      ],
+      "describedHash": "da39a3ee"
+    },
+    "portal/pages/requests": {
+      "biz": "Where employees see their purchase requests and create new ones.",
+      "tech": "Server components list requisitions from procure-api; the client form converts prices to cents, POSTs the draft to the BFF and optionally submits it in a second call.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "portal/src/app/requests/new/request-form.tsx",
+          "line": 32,
+          "note": "save then submit"
+        },
+        {
+          "path": "portal/src/app/requests/page.tsx",
+          "line": 7,
+          "note": "My requests page"
+        }
+      ],
+      "describedHash": "c2c2ab49"
+    },
+    "portal/pages/approvals": {
+      "biz": "The approver's inbox of steps waiting for their decision.",
+      "tech": "Server component reads /approvals/inbox; client buttons POST approve or reject (a comment is required to reject) to the BFF.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "portal/src/app/approvals/page.tsx",
+          "line": 6,
+          "note": "inbox page"
+        },
+        {
+          "path": "portal/src/app/approvals/decision-buttons.tsx",
+          "line": 12,
+          "note": "decide"
+        }
+      ],
+      "describedHash": "ef5d292d"
+    },
+    "portal/pages/budgets": {
+      "biz": "Finance and approvers see each cost center's allocated, reserved, consumed and available money for the year.",
+      "tech": "Server component over procure-api GET /budgets, restricted to finance and approver roles.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "portal/src/app/budgets/page.tsx",
+          "line": 5,
+          "note": "BudgetDashboardPage"
+        }
+      ],
+      "describedHash": "6da56a3c"
+    },
+    "portal/pages/invoices": {
+      "biz": "Finance's queue of invoices that did not match, where they accept a variance or reject the invoice.",
+      "tech": "Server component reads invoicing /invoices/awaiting-match; client actions POST a resolution with a mandatory note.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "portal/src/app/invoices/page.tsx",
+          "line": 7,
+          "note": "awaiting-match page"
+        },
+        {
+          "path": "portal/src/app/invoices/exception-actions.tsx",
+          "line": 11,
+          "note": "resolve"
+        }
+      ],
+      "describedHash": "c5898a9c"
+    },
+    "portal/pages/purchase-orders": {
+      "biz": "Detail view of one purchase order and its lines.",
+      "tech": "Server component fetching /purchase-orders/:id from procure-api, 404 when it does not exist.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "portal/src/app/purchase-orders/[id]/page.tsx",
+          "line": 7,
+          "note": "PurchaseOrderPage"
+        }
+      ],
+      "describedHash": "de5aab3e"
+    },
+    "portal/pages/vendors": {
+      "biz": "Searchable directory of vendors with their status and risk level.",
+      "tech": "Server component over procure-api GET /vendors with an optional query.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "portal/src/app/vendors/page.tsx",
+          "line": 14,
+          "note": "VendorDirectoryPage"
+        }
+      ],
+      "describedHash": "3ab85f8a"
+    },
+    "portal/pages/shell": {
+      "biz": "The portal's frame: header and navigation, showing links by role.",
+      "tech": "Root layout that reads the session to decide which nav links to render.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "portal/src/app/layout.tsx",
+          "line": 7,
+          "note": "RootLayout"
+        }
+      ],
+      "describedHash": "6747c44d"
+    },
+    "portal/api/requisitions": {
+      "biz": "Browser entry point to create, submit and withdraw purchase requests.",
+      "tech": "BFF route handlers that validate with the shared schemas and forward to procure-api with the service token and user header.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "portal/src/app/api/requisitions/route.ts",
+          "line": 7,
+          "note": "POST create"
+        },
+        {
+          "path": "portal/src/app/api/requisitions/[id]/[action]/route.ts",
+          "line": 13,
+          "note": "submit / withdraw"
+        }
+      ],
+      "describedHash": "7e66a3f3"
+    },
+    "portal/api/approvals": {
+      "biz": "Browser entry point to record an approval decision.",
+      "tech": "BFF handler, approver role only, forwarding to procure-api POST /approvals/steps/:stepId/decision.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "portal/src/app/api/approvals/[stepId]/decision/route.ts",
+          "line": 5,
+          "note": "POST decision"
+        }
+      ],
+      "describedHash": "3de1c817"
+    },
+    "portal/api/invoices": {
+      "biz": "Browser entry point for finance to resolve an invoice exception.",
+      "tech": "BFF handler, finance role only, forwarding to invoicing POST /exceptions/:id/resolve.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "portal/src/app/api/invoices/exceptions/[id]/resolve/route.ts",
+          "line": 5,
+          "note": "POST resolve"
+        }
+      ],
+      "describedHash": "75d94d6b"
+    },
+    "portal/api/vendors": {
+      "biz": "Browser entry point to search vendors and onboard new ones.",
+      "tech": "BFF handlers over procure-api /vendors; onboarding is limited to buyers and finance.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "portal/src/app/api/vendors/route.ts",
+          "line": 10,
+          "note": "POST onboard"
+        }
+      ],
+      "describedHash": "a08f049c"
+    },
+    "portal/ui/components": {
+      "biz": "Shared form and display pieces: the line-item editor used on purchase requests and status badges.",
+      "tech": "Client React components; line totals are computed in integer cents with the shared money helpers.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "portal/src/components/line-items-editor.tsx",
+          "line": 14,
+          "note": "LineItemsEditor"
+        },
+        {
+          "path": "portal/src/components/line-item-row.tsx",
+          "line": 28,
+          "note": "lineCents"
+        }
+      ],
+      "describedHash": "b3d0b2f3"
+    },
+    "portal/lib/session": {
+      "biz": "Knows who is signed in and what they may do in the portal.",
+      "tech": "Verifies the SSO gateway's signed nw_session cookie, gates pages and BFF calls by role, and builds the x-northwind-user header the backends trust; edge middleware only checks the cookie exists.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "portal/src/lib/session.ts",
+          "line": 24,
+          "note": "readSession verifies HMAC"
+        },
+        {
+          "path": "portal/src/middleware.ts",
+          "line": 5,
+          "note": "cookie presence check"
+        }
+      ],
+      "describedHash": "19e480ee"
+    },
+    "portal/lib/backend-clients": {
+      "biz": "The portal's way of talking to procure-api and invoicing without exposing backend tokens to the browser.",
+      "tech": "fetch wrappers that attach the service token, caller name and user header; bff() wraps route handlers with session, role checks and error mapping.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "portal/src/lib/bff.ts",
+          "line": 8,
+          "note": "bff wrapper"
+        },
+        {
+          "path": "portal/src/lib/procure-api.ts",
+          "line": 13,
+          "note": "procureApi"
+        }
+      ],
+      "describedHash": "e7ed3773"
+    },
+    "procure-api/domain/requisitions": {
+      "biz": "Purchase requests: drafted with priced line items, edited while draft, submitted for approval or withdrawn.",
+      "tech": "Line numbering and totals in integer cents with spend grouped by category; submit moves draft to submitted through the audited transition and starts the approval chain in the same transaction.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "procure-api/src/requisitions/requisition-lifecycle.ts",
+          "line": 12,
+          "note": "submitRequisition"
+        },
+        {
+          "path": "procure-api/src/requisitions/line-items.ts",
+          "line": 7,
+          "note": "numberLines and its invariants"
+        }
+      ],
+      "describedHash": "f7c7d999"
+    },
+    "procure-api/domain/approvals": {
+      "biz": "Decides who must approve a request, records their decisions, lets approvers delegate, and escalates steps that sit too long.",
+      "tech": "Rules from the approval_rules table are matched (category rules on category spend) and built into steps with segregation of duties; the final approval reserves budget, emits requisition.approved and issues the PO when a vendor is set. A 15-minute job escalates overdue steps to the manager.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "procure-api/src/approvals/chain-builder.ts",
+          "line": 22,
+          "note": "buildChain"
+        },
+        {
+          "path": "procure-api/src/approvals/approval.service.ts",
+          "line": 22,
+          "note": "decide"
+        },
+        {
+          "path": "procure-api/src/approvals/sla-escalation.job.ts",
+          "line": 10,
+          "note": "escalateOverdueApprovals"
+        }
+      ],
+      "describedHash": "80dd0caf"
+    },
+    "procure-api/domain/budgets": {
+      "biz": "Cost-center budgets per fiscal year: what is allocated, reserved by approved requests and consumed by matched invoices.",
+      "tech": "Pure balance functions guard every reserve, release and consume against overspend; each movement is logged and audited. Cost centers and allocations are upserted from NetSuite, clamping allocations to what is already committed.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "procure-api/src/budgets/overspend-guard.ts",
+          "line": 18,
+          "note": "applyReserve"
+        },
+        {
+          "path": "procure-api/src/budgets/budget.service.ts",
+          "line": 83,
+          "note": "consumeFunds, idempotent per invoice"
+        },
+        {
+          "path": "procure-api/src/budgets/cost-center.repo.ts",
+          "line": 10,
+          "note": "upsertCostCenters"
+        }
+      ],
+      "describedHash": "01a6fc9b"
+    },
+    "procure-api/domain/purchase-orders": {
+      "biz": "Purchase orders: issued from approved requests, amended or cancelled by buyers, received against, and closed once fully invoiced.",
+      "tech": "Every change checks the PO ceiling (never above the approved amount, never below what was invoiced or received), adjusts budget reservations, and writes an outbox event for invoicing.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "procure-api/src/purchase-orders/po.service.ts",
+          "line": 16,
+          "note": "issuePurchaseOrder"
+        },
+        {
+          "path": "procure-api/src/purchase-orders/po-ceiling.ts",
+          "line": 14,
+          "note": "assertWithinApprovedAmount"
+        },
+        {
+          "path": "procure-api/src/purchase-orders/po-invoicing.service.ts",
+          "line": 11,
+          "note": "recordInvoiced from invoicing"
+        }
+      ],
+      "describedHash": "95657a82"
+    },
+    "procure-api/domain/vendors": {
+      "biz": "Supplier onboarding: KYB risk scoring, activation or rejection, suspension, bank accounts and the Stripe payout account.",
+      "tech": "assessRisk blocks sanctions matches and embargoed countries and scores the rest; bank details are checksum-validated (IBAN mod-97, ABA) and stored masked.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "procure-api/src/vendors/kyb.ts",
+          "line": 15,
+          "note": "assessRisk"
+        },
+        {
+          "path": "procure-api/src/vendors/banking.ts",
+          "line": 36,
+          "note": "normalizeBankAccount"
+        },
+        {
+          "path": "procure-api/src/vendors/payout-account.ts",
+          "line": 27,
+          "note": "getPayoutAccount for invoicing"
+        }
+      ],
+      "describedHash": "68f8a9a8"
+    },
+    "procure-api/domain/contracts": {
+      "biz": "Vendor contracts sent out for e-signature and tracked until signed, declined or voided.",
+      "tech": "The contract is saved as a draft, then sent through DocuSign outside the transaction; the Connect webhook verifies its HMAC and applies envelope status idempotently.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "procure-api/src/contracts/contract.service.ts",
+          "line": 21,
+          "note": "createVendorContract"
+        },
+        {
+          "path": "procure-api/src/contracts/contract.service.ts",
+          "line": 84,
+          "note": "applyEnvelopeStatus"
+        }
+      ],
+      "describedHash": "a1b085d5"
+    },
+    "procure-api/domain/catalog": {
+      "biz": "Catalog search with the best vendor price, and importing carts from suppliers' punch-out sites.",
+      "tech": "Price tiers pick the cheapest vendor unless a preferred vendor is within 5%; punch-out carts arrive as SAP OCI form posts and are mapped to line items via UNSPSC codes.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "procure-api/src/catalog/pricing.ts",
+          "line": 24,
+          "note": "quote"
+        },
+        {
+          "path": "procure-api/src/catalog/punchout.ts",
+          "line": 33,
+          "note": "parseOciCart"
+        }
+      ],
+      "describedHash": "97e31122"
+    },
+    "procure-api/platform/audit": {
+      "biz": "The append-only history of who changed what, which finance can read per entity.",
+      "tech": "transitionState is the only sanctioned status change: it locks the row, checks allowed source states, updates and inserts the audit event in the caller's transaction.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "procure-api/src/audit/audited-transition.ts",
+          "line": 32,
+          "note": "transitionState"
+        },
+        {
+          "path": "procure-api/src/audit/audit-log.ts",
+          "line": 36,
+          "note": "appendAuditEvent"
+        }
+      ],
+      "describedHash": "7ccf4821"
+    },
+    "procure-api/platform/notifications": {
+      "biz": "Tells approvers they have something to decide, requesters what was decided, and finance when an approval is overdue.",
+      "tech": "Best-effort email and Slack sends after commit, never failing the caller; approval emails carry HMAC-signed approve/reject links served by legacy-approvals.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "procure-api/src/notifications/notifier.ts",
+          "line": 16,
+          "note": "notifyApprover"
+        },
+        {
+          "path": "procure-api/src/notifications/approval-link.ts",
+          "line": 9,
+          "note": "approvalLink token"
+        }
+      ],
+      "describedHash": "7a9b7d39"
+    },
+    "procure-api/platform/queue": {
+      "biz": "Publishes procurement events for invoicing reliably: an event goes out if and only if the change that caused it committed.",
+      "tech": "Transactional outbox table relayed every 2 seconds to SQS FIFO with SKIP LOCKED; the relay stops at the first failure so later events for the same PO never overtake it.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "procure-api/src/queue/outbox.ts",
+          "line": 19,
+          "note": "enqueueEvent"
+        },
+        {
+          "path": "procure-api/src/queue/outbox-relay.job.ts",
+          "line": 6,
+          "note": "relayOutboxBatch"
+        }
+      ],
+      "describedHash": "40c19ce5"
+    },
+    "procure-api/platform/internal": {
+      "biz": "Endpoints only the other services may call: invoicing reports matched invoices and reads payout accounts, erp-sync reads POs and pushes cost centers and GL accounts.",
+      "tech": "Fastify routes guarded by requireService for the named caller.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "procure-api/src/internal/internal.routes.ts",
+          "line": 22,
+          "note": "internalRoutes"
+        }
+      ],
+      "describedHash": "60324a6a"
+    },
+    "procure-api/platform/db": {
+      "biz": "procure-api's connection to its database and its schema migrations.",
+      "tech": "pg pool with safe BIGINT parsing, DATE kept as strings, and a withTransaction helper; SQL migrations applied at startup.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "procure-api/src/db/pool.ts",
+          "line": 23,
+          "note": "withTransaction"
+        }
+      ],
+      "describedHash": "1b89d39e"
+    },
+    "procure-api/platform/http": {
+      "biz": "Starts procure-api, authenticates callers and turns errors into consistent responses.",
+      "tech": "Fastify server with a shared bearer token plus x-northwind-caller allow-list, actor built from x-northwind-user, role guards, and an error handler mapping domain, zod and Postgres errors.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "procure-api/src/server.ts",
+          "line": 14,
+          "note": "buildServer"
+        },
+        {
+          "path": "procure-api/src/http/auth.ts",
+          "line": 41,
+          "note": "authenticate"
+        }
+      ],
+      "describedHash": "cc531bbc"
+    },
+    "invoicing/ap/ingestion": {
+      "biz": "Takes supplier invoices in by email or portal upload and turns the PDF into structured data.",
+      "tech": "Stores the PDF in S3, dedupes by SHA-256 and by vendor invoice number, extracts fields with OpenAI, and parks inconsistent totals or low-confidence extractions as exceptions before matching.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "invoicing/src/ingestion/ingest.service.ts",
+          "line": 23,
+          "note": "ingestInvoice"
+        },
+        {
+          "path": "invoicing/src/ingestion/ingest.routes.ts",
+          "line": 43,
+          "note": "always 200 to SendGrid"
+        }
+      ],
+      "describedHash": "50dbc140"
+    },
+    "invoicing/ap/matching": {
+      "biz": "Checks each invoice against its purchase order and what was actually received before it can be paid.",
+      "tech": "Pure three-way match with line pairing and basis-point price tolerances; on a match, reports the amount to procure-api to consume budget. New PO or receipt events re-run matching for parked invoices.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "invoicing/src/matching/three-way-match.ts",
+          "line": 29,
+          "note": "threeWayMatch"
+        },
+        {
+          "path": "invoicing/src/matching/match.service.ts",
+          "line": 13,
+          "note": "runMatch"
+        },
+        {
+          "path": "invoicing/src/matching/match.service.ts",
+          "line": 54,
+          "note": "confirmBudgetConsumption"
+        }
+      ],
+      "describedHash": "df6a9de3"
+    },
+    "invoicing/ap/exceptions": {
+      "biz": "The queue of invoices that need a human, and how finance clears them.",
+      "tech": "One open exception per invoice; finance can accept a variance (then budget is confirmed) or reject the invoice, and system rematches supersede open exceptions.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "invoicing/src/exceptions/exception.service.ts",
+          "line": 11,
+          "note": "resolveException"
+        }
+      ],
+      "describedHash": "0ff71a3d"
+    },
+    "invoicing/ap/invoices": {
+      "biz": "The invoice record and its status history, from received to paid.",
+      "tech": "Repository with an atomic compare-and-set status transition that writes invoice_status_history, plus read queries for the portal and for erp-sync's paid-invoice feed.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "invoicing/src/invoices/invoice.repo.ts",
+          "line": 69,
+          "note": "transitionInvoice"
+        },
+        {
+          "path": "invoicing/src/invoices/invoice-queries.ts",
+          "line": 32,
+          "note": "listPaidSince"
+        }
+      ],
+      "describedHash": "e0da55ec"
+    },
+    "invoicing/ap/payments": {
+      "biz": "Pays matched, budget-confirmed invoices to vendors once a day, and never pays the same invoice twice.",
+      "tech": "A scheduler behind a Postgres advisory lock starts the run; each invoice claims its single payments row and sends a Stripe transfer under an idempotency key derived only from the invoice id. Transient errors retry under the same key.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "invoicing/src/payments/pay-invoice.ts",
+          "line": 36,
+          "note": "payInvoice"
+        },
+        {
+          "path": "invoicing/src/payments/payment-run.ts",
+          "line": 59,
+          "note": "runPaymentRun"
+        },
+        {
+          "path": "invoicing/src/jobs/payment-scheduler.ts",
+          "line": 14,
+          "note": "maybeRunPayments"
+        }
+      ],
+      "describedHash": "21bb2e4e"
+    },
+    "invoicing/ap/po-mirror": {
+      "biz": "invoicing's local copy of purchase orders and goods receipts, so matching never waits on procure-api.",
+      "tech": "PO snapshots are applied only when their version is newer; receipts are inserted once and summed per line.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "invoicing/src/purchase-orders/po-mirror.repo.ts",
+          "line": 31,
+          "note": "upsertPurchaseOrder"
+        }
+      ],
+      "describedHash": "4dfea916"
+    },
+    "invoicing/platform/queue": {
+      "biz": "Receives the procurement events procure-api publishes.",
+      "tech": "SQS long-poll loop that validates each message with the shared schema, dispatches it, and deletes it only after handling; a failure stops the batch to keep FIFO order.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "invoicing/src/queue/sqs-consumer.ts",
+          "line": 20,
+          "note": "processMessage"
+        },
+        {
+          "path": "invoicing/src/queue/event-handlers.ts",
+          "line": 8,
+          "note": "handleProcurementEvent"
+        }
+      ],
+      "describedHash": "e836ae5d"
+    },
+    "invoicing/platform/clients": {
+      "biz": "invoicing's calls back to procure-api when it needs an answer now.",
+      "tech": "fetch client for budget consumption and vendor payout accounts; 4xx answers are treated as decisions, not retried.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "invoicing/src/clients/procure-api.ts",
+          "line": 45,
+          "note": "reportInvoiced"
+        }
+      ],
+      "describedHash": "d3eb2991"
+    },
+    "invoicing/platform/db": {
+      "biz": "invoicing's connection to its database and its schema migrations.",
+      "tech": "pg pool, withTransaction helper and a startup migration runner.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "invoicing/src/db/pool.ts",
+          "line": 18,
+          "note": "withTransaction"
+        }
+      ],
+      "describedHash": "52cc6a36"
+    },
+    "invoicing/platform/http": {
+      "biz": "Starts the invoicing worker and its API, and decides who may call it.",
+      "tech": "Fastify with multipart uploads; the inbound email route is public with its own secret, everything else needs the service token from portal or erp-sync. main.ts also starts the SQS consumer and payment scheduler.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "invoicing/src/http/server.ts",
+          "line": 10,
+          "note": "buildServer"
+        },
+        {
+          "path": "invoicing/src/main.ts",
+          "line": 9,
+          "note": "starts consumer and scheduler"
+        }
+      ],
+      "describedHash": "267c229d"
+    },
+    "erp-sync/sync/run": {
+      "biz": "The nightly job that brings NetSuite reference data in and pushes purchase orders and paid invoices out.",
+      "tech": "Runs under an advisory lock in a fixed order (cost centers, chart of accounts, POs, paid invoices); every write goes through syncOnce, and cursors never advance past an unsettled record.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "erp-sync/src/main.ts",
+          "line": 11,
+          "note": "runNightlySync"
+        },
+        {
+          "path": "erp-sync/src/steps/sync-once.ts",
+          "line": 31,
+          "note": "syncOnce"
+        },
+        {
+          "path": "erp-sync/src/steps/push-paid-invoices.ts",
+          "line": 45,
+          "note": "bill then payment"
+        }
+      ],
+      "describedHash": "acd206bb"
+    },
+    "erp-sync/sync/netsuite": {
+      "biz": "How erp-sync talks to NetSuite and translates platform records into NetSuite ones.",
+      "tech": "Hand-written OAuth 1.0 TBA signing, a fetch client that classifies 429/5xx as retryable, paged SuiteQL, and mappers to purchase orders, vendor bills and payments keyed by nw-po/nw-bill/nw-pay external ids.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "erp-sync/src/netsuite/oauth.ts",
+          "line": 14,
+          "note": "tbaAuthorizationHeader"
+        },
+        {
+          "path": "erp-sync/src/netsuite/mappers.ts",
+          "line": 10,
+          "note": "toNetSuitePurchaseOrder"
+        }
+      ],
+      "describedHash": "f4f932d2"
+    },
+    "erp-sync/sync/sources": {
+      "biz": "erp-sync's reads from and writes to procure-api and invoicing.",
+      "tech": "Cursor-paged async generators over the internal endpoints, plus PUTs of cost centers and GL accounts.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "erp-sync/src/sources/procure-api.ts",
+          "line": 17,
+          "note": "purchaseOrdersUpdatedSince"
+        },
+        {
+          "path": "erp-sync/src/sources/invoicing.ts",
+          "line": 4,
+          "note": "paidInvoicesSince"
+        }
+      ],
+      "describedHash": "bb584817"
+    },
+    "erp-sync/sync/ledger": {
+      "biz": "Remembers every write sent to NetSuite so nothing is sent twice and failures are retried, then handed to a human.",
+      "tech": "sync_ledger keyed by idempotency key with exponential backoff and a dead state after 8 attempts or a non-retryable error; forward-only cursors per source.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "erp-sync/src/store/sync-ledger.ts",
+          "line": 11,
+          "note": "begin"
+        },
+        {
+          "path": "erp-sync/src/store/backoff.ts",
+          "line": 7,
+          "note": "nextAttemptAt"
+        }
+      ],
+      "describedHash": "954f4cb9"
+    },
+    "contracts/schemas/payloads": {
+      "biz": "The shared definition of every request and response that crosses a service boundary.",
+      "tech": "zod schemas and inferred types for requisitions, approvals, POs, vendors, budgets, invoices and ERP sync, imported as TypeScript source through the workspace.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "contracts/src/index.ts",
+          "line": 1,
+          "note": "barrel"
+        },
+        {
+          "path": "contracts/src/purchase-order.ts",
+          "line": 18,
+          "note": "PurchaseOrderSchema"
+        }
+      ],
+      "describedHash": "9ada5999"
+    },
+    "contracts/schemas/events": {
+      "biz": "The shape of the procurement events on the queue.",
+      "tech": "A discriminated union of versioned event envelopes, and messageGroupId, which keys every PO event by its PO for FIFO ordering.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "contracts/src/events.ts",
+          "line": 43,
+          "note": "ProcurementEventSchema"
+        },
+        {
+          "path": "contracts/src/events.ts",
+          "line": 56,
+          "note": "messageGroupId"
+        }
+      ],
+      "describedHash": "41b0a40a"
+    },
+    "contracts/schemas/money": {
+      "biz": "Money handled the same way everywhere: whole cents, never floats.",
+      "tech": "Currency and cents schemas, and helpers that multiply, sum and parse decimals while throwing instead of losing precision.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "contracts/src/money.ts",
+          "line": 19,
+          "note": "multiplyCents"
+        },
+        {
+          "path": "contracts/src/money.ts",
+          "line": 34,
+          "note": "parseDecimalToCents"
+        }
+      ],
+      "describedHash": "74120943"
+    },
+    "legacy-approvals/app/approve-by-link": {
+      "biz": "The page an approver lands on after clicking Approve or Reject in an email.",
+      "tech": "Express routes: GET only renders a confirmation because mail scanners prefetch links; POST verifies the token and forwards the decision to procure-api, mapping 409 and 403 to friendly pages.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "legacy-approvals/src/routes/approve-by-link.js",
+          "line": 18,
+          "note": "GET confirmation"
+        },
+        {
+          "path": "legacy-approvals/src/routes/approve-by-link.js",
+          "line": 24,
+          "note": "POST decision"
+        }
+      ],
+      "describedHash": "0fb3d9ac"
+    },
+    "legacy-approvals/app/link-token": {
+      "biz": "Checks that an email approval link is genuine and not expired.",
+      "tech": "Verifies the base64url payload and HMAC-SHA256 signature with APPROVAL_LINK_SECRET; the format is shared byte for byte with procure-api's approval-link.ts.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "legacy-approvals/src/lib/link-token.js",
+          "line": 7,
+          "note": "verifyLinkToken"
+        }
+      ],
+      "describedHash": "e98658f2"
+    },
+    "legacy-approvals/app/procure-client": {
+      "biz": "Records the approver's decision in procure-api on their behalf.",
+      "tech": "axios client posting to /approvals/steps/:stepId/decision with the service token and a user header naming the approver.",
+      "confidence": "verified",
+      "anchors": [
+        {
+          "path": "legacy-approvals/src/lib/procure-client.js",
+          "line": 21,
+          "note": "submitDecision"
+        }
+      ],
+      "describedHash": "ada1eb2c"
+    }
+  },
+  "flows": [
+    {
+      "id": "submit-request",
+      "name": "Submit a purchase request",
+      "biz": "From the request form to the first approver being notified.",
+      "confidence": "verified",
+      "steps": [
+        {
+          "unit": "portal/pages/requests",
+          "text": "The form converts prices to cents, saves the draft and asks to submit it.",
+          "anchor": "portal/src/app/requests/new/request-form.tsx:50"
+        },
+        {
+          "unit": "portal/api/requisitions",
+          "text": "The BFF validates the body and forwards it to procure-api with the user header.",
+          "anchor": "portal/src/app/api/requisitions/route.ts:7"
+        },
+        {
+          "unit": "procure-api/domain/requisitions",
+          "text": "Creates the draft with numbered lines and a cents total, then moves it to submitted.",
+          "anchor": "procure-api/src/requisitions/requisition-lifecycle.ts:12"
+        },
+        {
+          "unit": "procure-api/platform/audit",
+          "text": "The status change and its audit event are written in one transaction.",
+          "anchor": "procure-api/src/audit/audited-transition.ts:32"
+        },
+        {
+          "unit": "procure-api/domain/approvals",
+          "text": "Matches approval rules, builds the chain of approvers and inserts the steps.",
+          "anchor": "procure-api/src/approvals/approval-chain.ts:16"
+        },
+        {
+          "unit": "procure-api/platform/notifications",
+          "text": "After commit, emails and DMs the first approver.",
+          "anchor": "procure-api/src/notifications/notifier.ts:16"
+        },
+        {
+          "unit": "ext:sendgrid",
+          "text": "Delivers the approval email with signed approve and reject links.",
+          "anchor": "procure-api/src/notifications/email.ts:23"
+        },
+        {
+          "unit": "ext:slack",
+          "text": "Sends a DM with a link to the portal.",
+          "anchor": "procure-api/src/notifications/slack.ts:15"
+        }
+      ]
+    },
+    {
+      "id": "approve-to-po",
+      "name": "Approve a request into a purchase order",
+      "biz": "The last approval reserves budget, announces the approval and issues the PO.",
+      "confidence": "verified",
+      "steps": [
+        {
+          "unit": "portal/pages/approvals",
+          "text": "The approver clicks Approve in their inbox.",
+          "anchor": "portal/src/app/approvals/decision-buttons.tsx:12"
+        },
+        {
+          "unit": "portal/api/approvals",
+          "text": "The BFF checks the approver role and forwards the decision.",
+          "anchor": "portal/src/app/api/approvals/[stepId]/decision/route.ts:5"
+        },
+        {
+          "unit": "procure-api/domain/approvals",
+          "text": "Locks the step, checks the actor is the approver or a delegate, and records the decision.",
+          "anchor": "procure-api/src/approvals/approval.service.ts:22"
+        },
+        {
+          "unit": "procure-api/domain/approvals",
+          "text": "With no step left, approves the requisition.",
+          "anchor": "procure-api/src/approvals/approval.service.ts:77"
+        },
+        {
+          "unit": "procure-api/domain/budgets",
+          "text": "Reserves the total on the cost center, refusing to overspend.",
+          "anchor": "procure-api/src/budgets/budget.service.ts:37"
+        },
+        {
+          "unit": "procure-api/domain/purchase-orders",
+          "text": "Issues the PO if a vendor was chosen, within the approved amount.",
+          "anchor": "procure-api/src/purchase-orders/po.service.ts:16"
+        },
+        {
+          "unit": "procure-api/platform/queue",
+          "text": "Writes requisition.approved and purchase_order.issued to the outbox in the same transaction.",
+          "anchor": "procure-api/src/queue/outbox.ts:19"
+        }
+      ]
+    },
+    {
+      "id": "approve-by-email",
+      "name": "Approve from an email link (legacy)",
+      "biz": "The older path: an approver decides from the email without opening the portal.",
+      "confidence": "verified",
+      "steps": [
+        {
+          "unit": "procure-api/platform/notifications",
+          "text": "Signs a token with step, approver, decision and expiry, and builds the link.",
+          "anchor": "procure-api/src/notifications/approval-link.ts:9"
+        },
+        {
+          "unit": "ext:sendgrid",
+          "text": "The link reaches the approver by email.",
+          "anchor": "procure-api/src/notifications/email.ts:23"
+        },
+        {
+          "unit": "legacy-approvals/app/approve-by-link",
+          "text": "GET shows a confirmation page; POST acts on it.",
+          "anchor": "legacy-approvals/src/routes/approve-by-link.js:24"
+        },
+        {
+          "unit": "legacy-approvals/app/link-token",
+          "text": "Verifies the HMAC and expiry.",
+          "anchor": "legacy-approvals/src/lib/link-token.js:7"
+        },
+        {
+          "unit": "legacy-approvals/app/procure-client",
+          "text": "Posts the decision to procure-api on the approver's behalf.",
+          "anchor": "legacy-approvals/src/lib/procure-client.js:21"
+        },
+        {
+          "unit": "procure-api/domain/approvals",
+          "text": "The same decide path as the portal applies the decision.",
+          "anchor": "procure-api/src/approvals/approval.routes.ts:18"
+        }
+      ]
+    },
+    {
+      "id": "po-to-invoicing",
+      "name": "A PO reaches invoicing",
+      "biz": "How invoicing learns about POs and receipts without calling procure-api.",
+      "confidence": "verified",
+      "steps": [
+        {
+          "unit": "procure-api/domain/purchase-orders",
+          "text": "Issuing, amending, cancelling or receiving goods enqueues an event.",
+          "anchor": "procure-api/src/purchase-orders/po.service.ts:64"
+        },
+        {
+          "unit": "procure-api/platform/queue",
+          "text": "The relay sends unsent outbox rows in order and stops at the first failure.",
+          "anchor": "procure-api/src/queue/outbox-relay.job.ts:6"
+        },
+        {
+          "unit": "ext:sqs",
+          "text": "The FIFO queue keeps events for one PO in order and dedupes by event id.",
+          "anchor": "procure-api/src/queue/sqs-publisher.ts:18"
+        },
+        {
+          "unit": "invoicing/platform/queue",
+          "text": "The consumer validates the event and dispatches it.",
+          "anchor": "invoicing/src/queue/event-handlers.ts:8"
+        },
+        {
+          "unit": "invoicing/ap/po-mirror",
+          "text": "Applies the PO snapshot only if its version is newer.",
+          "anchor": "invoicing/src/purchase-orders/po-mirror.repo.ts:31"
+        },
+        {
+          "unit": "invoicing/ap/matching",
+          "text": "Re-runs matching for invoices parked waiting for this PO or receipt.",
+          "anchor": "invoicing/src/matching/match.service.ts:87"
+        }
+      ]
+    },
+    {
+      "id": "invoice-to-match",
+      "name": "Match a supplier invoice",
+      "biz": "From an emailed PDF to budget consumed on the PO.",
+      "confidence": "verified",
+      "steps": [
+        {
+          "unit": "ext:sendgrid",
+          "text": "Inbound Parse posts the supplier's email with its PDF attachments.",
+          "anchor": "invoicing/src/ingestion/ingest.routes.ts:14"
+        },
+        {
+          "unit": "invoicing/ap/ingestion",
+          "text": "Stores and dedupes the PDF, extracts fields, and parks bad extractions.",
+          "anchor": "invoicing/src/ingestion/ingest.service.ts:23"
+        },
+        {
+          "unit": "ext:s3",
+          "text": "Keeps the original PDF under a content-addressed key.",
+          "anchor": "invoicing/src/ingestion/pdf-store.ts:27"
+        },
+        {
+          "unit": "ext:openai",
+          "text": "Reads the PDF into JSON that is validated before use.",
+          "anchor": "invoicing/src/ingestion/extractor.ts:15"
+        },
+        {
+          "unit": "invoicing/ap/matching",
+          "text": "Three-way match of PO, receipts and invoice within tolerances.",
+          "anchor": "invoicing/src/matching/three-way-match.ts:29"
+        },
+        {
+          "unit": "invoicing/platform/clients",
+          "text": "Reports the matched amount to procure-api.",
+          "anchor": "invoicing/src/clients/procure-api.ts:45"
+        },
+        {
+          "unit": "procure-api/platform/internal",
+          "text": "Internal endpoint accepts the call from invoicing only.",
+          "anchor": "procure-api/src/internal/internal.routes.ts:41"
+        },
+        {
+          "unit": "procure-api/domain/purchase-orders",
+          "text": "Records the invoiced amount and closes the PO when fully invoiced.",
+          "anchor": "procure-api/src/purchase-orders/po-invoicing.service.ts:11"
+        },
+        {
+          "unit": "procure-api/domain/budgets",
+          "text": "Consumes the budget, once per invoice.",
+          "anchor": "procure-api/src/budgets/budget.service.ts:83"
+        }
+      ]
+    },
+    {
+      "id": "payment-run",
+      "name": "Daily payment run",
+      "biz": "Paying vendors for matched invoices, exactly once each.",
+      "confidence": "verified",
+      "steps": [
+        {
+          "unit": "invoicing/ap/payments",
+          "text": "At the configured hour, one replica takes the advisory lock and starts the run.",
+          "anchor": "invoicing/src/jobs/payment-scheduler.ts:14"
+        },
+        {
+          "unit": "invoicing/ap/payments",
+          "text": "Retries pending budget confirmations, then lists payable invoices due within the horizon.",
+          "anchor": "invoicing/src/payments/payment-run.ts:59"
+        },
+        {
+          "unit": "invoicing/platform/clients",
+          "text": "Fetches each vendor's payout account fresh from procure-api.",
+          "anchor": "invoicing/src/clients/procure-api.ts:41"
+        },
+        {
+          "unit": "procure-api/domain/vendors",
+          "text": "Returns the Stripe account, payout currency and vendor status.",
+          "anchor": "procure-api/src/vendors/payout-account.ts:27"
+        },
+        {
+          "unit": "invoicing/ap/payments",
+          "text": "Claims the invoice's single payments row with its fixed idempotency key.",
+          "anchor": "invoicing/src/payments/pay-invoice.ts:36"
+        },
+        {
+          "unit": "ext:stripe",
+          "text": "Creates the Connect transfer; a retry with the same key returns the original.",
+          "anchor": "invoicing/src/payments/stripe-payouts.ts:22"
+        }
+      ]
+    },
+    {
+      "id": "nightly-erp-sync",
+      "name": "Nightly NetSuite sync",
+      "biz": "Reference data in from NetSuite, POs and paid bills out to it.",
+      "confidence": "verified",
+      "steps": [
+        {
+          "unit": "erp-sync/sync/run",
+          "text": "The CronJob takes the run lock and runs the steps in order.",
+          "anchor": "erp-sync/src/main.ts:11"
+        },
+        {
+          "unit": "erp-sync/sync/netsuite",
+          "text": "Queries departments and budgets with SuiteQL.",
+          "anchor": "erp-sync/src/netsuite/suiteql.ts:9"
+        },
+        {
+          "unit": "ext:netsuite",
+          "text": "NetSuite answers over its REST API.",
+          "anchor": "erp-sync/src/netsuite/client.ts:39"
+        },
+        {
+          "unit": "erp-sync/sync/sources",
+          "text": "Pushes cost centers to procure-api.",
+          "anchor": "erp-sync/src/sources/procure-api.ts:32"
+        },
+        {
+          "unit": "procure-api/domain/budgets",
+          "text": "Upserts cost centers and allocations, clamping to committed spend.",
+          "anchor": "procure-api/src/budgets/cost-center.repo.ts:10"
+        },
+        {
+          "unit": "erp-sync/sync/run",
+          "text": "Pushes changed POs, one write per PO version.",
+          "anchor": "erp-sync/src/steps/push-purchase-orders.ts:9"
+        },
+        {
+          "unit": "erp-sync/sync/ledger",
+          "text": "Skips writes that already succeeded and backs off failures.",
+          "anchor": "erp-sync/src/store/sync-ledger.ts:11"
+        },
+        {
+          "unit": "invoicing/platform/http",
+          "text": "Serves paid invoices since the cursor.",
+          "anchor": "invoicing/src/http/internal.routes.ts:13"
+        },
+        {
+          "unit": "erp-sync/sync/run",
+          "text": "Creates a vendor bill from the PO, then the vendor payment.",
+          "anchor": "erp-sync/src/steps/push-paid-invoices.ts:45"
+        }
+      ]
+    }
+  ],
+  "invariants": [
+    {
+      "id": "po-within-requisition",
+      "name": "A PO never exceeds its approved requisition",
+      "biz": "Spending more than was approved needs a new request; amendments also cannot drop below what was invoiced or received.",
+      "guard": "test",
+      "guardPath": "procure-api/src/purchase-orders/po-ceiling.test.ts",
+      "scope": ["procure-api/domain/purchase-orders"]
+    },
+    {
+      "id": "budget-not-negative",
+      "name": "Budgets never go negative",
+      "biz": "Reservations and consumption must fit in what is available; a database CHECK constraint backs the code.",
+      "guard": "test",
+      "guardPath": "procure-api/src/budgets/overspend-guard.test.ts",
+      "scope": ["procure-api/domain/budgets"]
+    },
+    {
+      "id": "audited-state-change",
+      "name": "Every status change writes an audit event in the same transaction",
+      "biz": "No requisition, PO, vendor or contract changes status without a record of who did it.",
+      "guard": "test",
+      "guardPath": "procure-api/src/audit/audited-transition.test.ts",
+      "scope": [
+        "procure-api/platform/audit",
+        "procure-api/domain/requisitions",
+        "procure-api/domain/approvals",
+        "procure-api/domain/purchase-orders",
+        "procure-api/domain/vendors",
+        "procure-api/domain/contracts"
+      ]
+    },
+    {
+      "id": "no-auto-approval",
+      "name": "No request approves itself",
+      "biz": "No matching rule is an error, never an automatic approval, and a requester is never their own approver.",
+      "guard": "test",
+      "guardPath": "procure-api/src/approvals/chain-builder.test.ts",
+      "scope": ["procure-api/domain/approvals"],
+      "decision": "approval-rules-as-data"
+    },
+    {
+      "id": "pay-what-matched",
+      "name": "Only invoices that match the PO and receipts are paid",
+      "biz": "Billed quantities cannot exceed what arrived, prices stay within tolerance, and cumulative billing stays within the PO.",
+      "guard": "test",
+      "guardPath": "invoicing/src/matching/three-way-match.test.ts",
+      "scope": ["invoicing/ap/matching", "invoicing/ap/payments"]
+    },
+    {
+      "id": "invoice-paid-once",
+      "name": "Each invoice is paid at most once",
+      "biz": "Retries, crashes and concurrent runs must never send a second transfer.",
+      "guard": "test",
+      "guardPath": "invoicing/src/payments/pay-invoice.test.ts",
+      "scope": ["invoicing/ap/payments"]
+    },
+    {
+      "id": "event-iff-commit",
+      "name": "An event is published if and only if its change commits",
+      "biz": "invoicing never sees a PO that was rolled back, and never misses one that was committed.",
+      "guard": "partial",
+      "guardPath": "procure-api/src/queue/outbox.ts",
+      "scope": [
+        "procure-api/platform/queue",
+        "procure-api/domain/purchase-orders",
+        "invoicing/platform/queue"
+      ],
+      "decision": "sqs-between-services"
+    },
+    {
+      "id": "money-integer-cents",
+      "name": "Money is integer cents end to end",
+      "biz": "No float rounding in budgets, matching or payouts; helpers throw instead of losing precision.",
+      "guard": "partial",
+      "guardPath": "contracts/src/money.ts",
+      "scope": [
+        "contracts/schemas/money",
+        "procure-api/domain/requisitions",
+        "procure-api/domain/budgets",
+        "invoicing/ap/matching",
+        "erp-sync/sync/netsuite"
+      ],
+      "decision": "money-integer-cents"
+    },
+    {
+      "id": "erp-write-once",
+      "name": "Each NetSuite write is sent once",
+      "biz": "A record that already synced is skipped, and cursors never move past records still waiting for a retry.",
+      "guard": "partial",
+      "guardPath": "erp-sync/src/store/sync-ledger.ts",
+      "scope": ["erp-sync/sync/ledger", "erp-sync/sync/run"]
+    },
+    {
+      "id": "approval-link-format",
+      "name": "Approval link tokens stay byte-compatible",
+      "biz": "procure-api signs and legacy-approvals verifies the same token format with the same secret until the legacy app is retired.",
+      "guard": "none",
+      "guardPath": "",
+      "scope": ["procure-api/platform/notifications", "legacy-approvals/app/link-token"]
+    }
+  ],
+  "decisions": [
+    {
+      "id": "sqs-between-services",
+      "name": "SQS between procure-api and invoicing",
+      "note": "invoicing used to call procure-api when an invoice arrived and stalled during month-end deploys; it now keeps a PO mirror fed by an outbox relayed to SQS FIFO.",
+      "path": "procure-api/docs/adr/0001-sqs-between-procure-api-and-invoicing.md",
+      "units": [
+        "procure-api/platform/queue",
+        "invoicing/platform/queue",
+        "invoicing/ap/po-mirror",
+        "contracts/schemas/events"
+      ]
+    },
+    {
+      "id": "approval-rules-as-data",
+      "name": "Approval rules as data, not code",
+      "note": "Thresholds change every budget cycle, so rules live in approval_rules and ship as SQL migrations finance reviews; git history is the policy history.",
+      "path": "procure-api/docs/adr/0002-approval-rules-as-data.md",
+      "units": ["procure-api/domain/approvals"]
+    },
+    {
+      "id": "money-integer-cents",
+      "name": "Money as integer cents end to end",
+      "note": "Every amount is BIGINT cents from the portal form to the Stripe transfer; decimal strings exist only at the LLM-extraction and NetSuite boundaries.",
+      "path": "procure-api/docs/adr/0003-money-as-integer-cents.md",
+      "units": [
+        "contracts/schemas/money",
+        "procure-api/platform/db",
+        "invoicing/ap/matching",
+        "erp-sync/sync/netsuite"
+      ]
+    },
+    {
+      "id": "notify-after-commit",
+      "name": "Notifications are sent after commit and never fail the caller",
+      "note": "A Slack or SendGrid outage must never roll back an approval decision.",
+      "path": "procure-api/src/approvals/approval.service.ts",
+      "units": ["procure-api/domain/approvals", "procure-api/platform/notifications"]
+    },
+    {
+      "id": "link-get-does-not-act",
+      "name": "Approve-by-link does not act on GET",
+      "note": "Corporate mail scanners prefetch every link in an email; acting on GET once approved requests nobody had looked at.",
+      "path": "legacy-approvals/src/routes/approve-by-link.js",
+      "units": ["legacy-approvals/app/approve-by-link"]
+    }
+  ],
+  "concepts": [
+    {
+      "id": "requisition",
+      "name": "Requisition",
+      "biz": "A purchase request with priced lines, moving from draft to submitted, approved and ordered.",
+      "store": "procure-api: requisitions, requisition_lines",
+      "confidence": "verified",
+      "owner": ["procure-api/domain/requisitions"],
+      "writes": [
+        "procure-api/domain/requisitions",
+        "procure-api/domain/approvals",
+        "procure-api/domain/purchase-orders"
+      ],
+      "reads": ["portal/pages/requests", "procure-api/platform/notifications"]
+    },
+    {
+      "id": "purchase-order",
+      "name": "Purchase order",
+      "biz": "The commitment to a vendor, versioned on every amendment.",
+      "store": "procure-api: purchase_orders; invoicing: po_mirror",
+      "confidence": "verified",
+      "owner": ["procure-api/domain/purchase-orders"],
+      "writes": ["procure-api/domain/purchase-orders", "invoicing/ap/po-mirror"],
+      "reads": ["portal/pages/purchase-orders", "invoicing/ap/matching", "erp-sync/sync/run"]
+    },
+    {
+      "id": "budget",
+      "name": "Budget",
+      "biz": "A cost center's money for one fiscal year: allocated, reserved, consumed.",
+      "store": "procure-api: budgets, budget_movements",
+      "confidence": "verified",
+      "owner": ["procure-api/domain/budgets"],
+      "writes": ["procure-api/domain/budgets"],
+      "reads": ["portal/pages/budgets"]
+    },
+    {
+      "id": "invoice",
+      "name": "Invoice",
+      "biz": "A supplier's bill, from received through extracted, matched or exception, to paid.",
+      "store": "invoicing: invoices, invoice_status_history",
+      "confidence": "verified",
+      "owner": ["invoicing/ap/invoices"],
+      "writes": [
+        "invoicing/ap/ingestion",
+        "invoicing/ap/matching",
+        "invoicing/ap/exceptions",
+        "invoicing/ap/payments"
+      ],
+      "reads": ["portal/pages/invoices", "erp-sync/sync/sources"]
+    },
+    {
+      "id": "vendor",
+      "name": "Vendor",
+      "biz": "A supplier with KYB risk, bank details and a Stripe payout account.",
+      "store": "procure-api: vendors, vendor_bank_accounts",
+      "confidence": "verified",
+      "owner": ["procure-api/domain/vendors"],
+      "writes": ["procure-api/domain/vendors"],
+      "reads": [
+        "procure-api/domain/purchase-orders",
+        "procure-api/domain/contracts",
+        "invoicing/ap/payments",
+        "portal/pages/vendors"
+      ]
+    }
+  ],
+  "legacy": {
+    "retiring": {
+      "label": "Being retired",
+      "note": "Replaced by procure-api/approvals once approval emails link straight to the portal (PROC-412). Do not add features."
+    }
+  },
+  "legacyStatus": {
+    "legacy-approvals/app/approve-by-link": "retiring",
+    "legacy-approvals/app/link-token": "retiring",
+    "legacy-approvals/app/procure-client": "retiring"
+  }
+}

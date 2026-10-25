@@ -99,6 +99,23 @@ function resolveImport(source: Source, file: string, spec: string): Target | nul
   return null;
 }
 
+const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const externals = (config.externals ?? []).map((e) => {
+  const packages = (e.packages ?? []).map((p) => (p.endsWith('/*') ? p.slice(0, -1) : p));
+  const imports = packages.map((p) => (p.endsWith('/') ? `${escape(p)}[^'"]*` : `${escape(p)}(?:/[^'"]*)?`));
+  const signals = [
+    ...(imports.length ? [new RegExp(`(?:from|import)\\s*\\(?\\s*['"](?:${imports.join('|')})['"]`)] : []),
+    ...(e.env ?? []).map((prefix) => new RegExp(`\\b${escape(prefix)}`)),
+    ...(e.code ?? []).map((c) => new RegExp(c)),
+  ];
+  return { id: `ext:${e.id}`, name: e.name, kind: e.kind, signals };
+});
+
+function firstHit(text: string, signals: RegExp[]): number | null {
+  const at = Math.min(...signals.map((re) => text.search(re)).filter((i) => i >= 0));
+  return Number.isFinite(at) ? text.slice(0, at).split('\n').length : null;
+}
+
 const nodes = new Map<string, SkNode>();
 const edges = new Map<string, Edge>();
 const node = (id: string, props: Omit<SkNode, 'id' | 'files' | 'loc'>) => {
@@ -108,12 +125,14 @@ const node = (id: string, props: Omit<SkNode, 'id' | 'files' | 'loc'>) => {
   nodes.set(id, created);
   return created;
 };
-function addEdge(from: string, to: string, kind: Edge['kind']) {
+function addEdge(from: string, to: string, kind: Edge['kind'], at?: string) {
   const key = `${from}|${to}|${kind}`;
   const edge = edges.get(key);
   if (edge) edge.w++;
-  else edges.set(key, { from, to, kind, w: 1 });
+  else edges.set(key, { from, to, kind, w: 1, ...(at && { at }) });
 }
+
+for (const e of externals) node(e.id, { kind: 'external', name: e.name, system: e.kind });
 
 for (const source of sources.values()) {
   node(`repo:${source.id}`, {
@@ -139,6 +158,10 @@ for (const source of sources.values()) {
       const target = resolveImport(source, file, spec);
       const to = target && moduleId(target);
       if (target && to && to !== modId) addEdge(modId, to, target.source === source ? 'uses' : 'consumes');
+    }
+    for (const e of externals) {
+      const line = firstHit(text, e.signals);
+      if (line !== null) addEdge(modId, e.id, 'calls', `${source.dir}/${file}:${line}`);
     }
   }
 }

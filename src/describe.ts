@@ -1,10 +1,21 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import type { Desc, DescribeResponse, DescriptionsStore, Skeleton } from './types.ts';
 import type { DescDraft } from './parse.ts';
 import { parseDescription } from './parse.ts';
 import { atlasPaths, moduleHash, readJsonOr } from './project.ts';
 import { contextSection, describeFlags, describePrompt, fencedJson } from './agent.ts';
 import { runClaude } from './claude.ts';
+
+const TIMEOUT_MS = 4 * 60_000;
+
+const MAX_LINES = 400;
+
+function source(project: string, file: string) {
+  const lines = fs.readFileSync(path.join(project, file), 'utf8').split('\n');
+  const cut = lines.length > MAX_LINES ? `\n… ${lines.length - MAX_LINES} more lines` : '';
+  return { path: file, text: lines.slice(0, MAX_LINES).join('\n') + cut };
+}
 
 const toDesc = (o: DescDraft, describedHash: string): Desc => ({
   biz: o.biz_pt,
@@ -23,13 +34,17 @@ export function describeModule(project: string, id: string): Promise<DescribeRes
   const section = contextSection(fs.readFileSync(paths.context, 'utf8'), id);
   const child = runClaude(
     project,
-    describeFlags(describePrompt({ id, section, files: mod.files.map((f) => f.path) })),
+    describeFlags(describePrompt({ id, section, files: mod.files.map((f) => source(project, f.path)) })),
   );
   let out = '';
   child.stdout.on('data', (d: Buffer) => (out += d));
   child.stderr.on('data', (d: Buffer) => process.stderr.write(d));
   return new Promise((resolve, reject) => {
-    child.on('close', () => {
+    const timer = setTimeout(() => child.kill(), TIMEOUT_MS);
+    child.on('close', (code, signal) => {
+      clearTimeout(timer);
+      if (signal)
+        return reject(new Error(`describe ${id}: the agent took over ${TIMEOUT_MS / 60_000} minutes`));
       try {
         const got = parseDescription(fencedJson(JSON.parse(out).result || ''));
         const store = readJsonOr<DescriptionsStore>(paths.descriptions, { nodes: {}, files: {} });

@@ -1,7 +1,20 @@
 import { isStale } from '../types.ts';
 import type { Flow } from '../types.ts';
-import { CAP, D, FLOW, isUnder, LEGACY_COLOR, modLabel, modules, repoName, SOURCES } from './data.ts';
+import {
+  CAP,
+  D,
+  externals,
+  FLOW,
+  isUnder,
+  LEGACY_COLOR,
+  modLabel,
+  modules,
+  repoName,
+  SOURCES,
+} from './data.ts';
 import { esc } from './dom.ts';
+import type { Key } from './i18n.ts';
+import type { DescribeStatus } from './chat.ts';
 import { fmt, L, t } from './i18n.ts';
 import { state } from './state.ts';
 import type { TreeNode } from './tree.ts';
@@ -17,14 +30,15 @@ import {
   section,
 } from './html.ts';
 
-const kindName = (n: TreeNode) =>
-  t(
-    n.kind === 'cap'
-      ? 'capability'
-      : n.kind === 'file' || n.kind === 'module' || n.kind === 'area'
-        ? n.kind
-        : 'repo',
-  );
+const KIND_NAME: Record<Exclude<TreeNode['kind'], 'root' | 'group'>, Key> = {
+  cap: 'capability',
+  repo: 'repo',
+  area: 'area',
+  module: 'module',
+  file: 'file',
+  external: 'external',
+};
+const kindName = (n: TreeNode) => (n.kind === 'root' || n.kind === 'group' ? '' : t(KIND_NAME[n.kind]));
 
 function subject(): Exclude<TreeNode, { kind: 'group' }> {
   const n = view.T[state.sel ?? ''] || view.T[state.focus] || view.root;
@@ -38,6 +52,7 @@ export function detailsHtml(): string {
   if (n.kind === 'root') return rootCard();
   if (n.kind === 'cap') return capCard(n);
   if (n.kind === 'file') return fileCard(n);
+  if (n.kind === 'external') return externalCard(n);
   return nodeCard(n);
 }
 
@@ -51,6 +66,27 @@ function rootCard() {
     `<p class="lede second">${t('rootHow')} ${lens} ${t('rootHover')}</p>`,
     section(t('flows'), D.flows.map((f) => flowButton(f, true)).join('')),
     section(t('rules'), D.invariants.map(ruleItem).join('')),
+    section(t('externals'), `<div class="row">${externals.map((e) => moduleLink(e.id)).join('')}</div>`),
+  ].join('');
+}
+
+function externalCard(n: Extract<TreeNode, { kind: 'external' }>) {
+  const calls = D.edges.filter((e) => e.to === n.id).sort((a, b) => b.w - a.w);
+  const flows = D.flows.filter((f) =>
+    f.steps.some((s) => s.unit === n.id || calls.some((c) => c.from === s.unit)),
+  );
+  const callers = calls
+    .map((e) => `<div class="call">${moduleLink(e.from, e.w)}<div class="ev">${esc(e.at ?? '')}</div></div>`)
+    .join('');
+  return [
+    `<h2>${esc(n.name)}</h2>`,
+    `<div class="kind">${t('external')}${n.ref.system ? ' · ' + esc(n.ref.system) : ''} · ${calls.length} ${t('modules')} ${confidenceChip(n.ref.desc?.confidence)}</div>`,
+    n.ref.desc ? ledes(n.ref.desc) : `<p class="lede none">${t('noSystemDesc')}</p>`,
+    section(
+      `<span style="color:#d9822b">●</span> ${t('calledFrom')}`,
+      callers || `<p class="lede second">${t('noCalls')}</p>`,
+    ),
+    section(t('flows'), flows.map((f) => flowButton(f)).join('')),
   ].join('');
 }
 
@@ -158,7 +194,7 @@ function flowCard(f: Flow) {
   ].join('');
 }
 
-export function captionHtml(describing: Set<string>): string {
+export function captionHtml(describeStatus: (id: string) => DescribeStatus | null): string {
   const flow = FLOW[state.flow];
   if (flow) {
     const step = flow.steps[state.step];
@@ -175,9 +211,11 @@ export function captionHtml(describing: Set<string>): string {
   if (n.kind === 'root') return '';
   const d = descOf(n);
   const lines = n.kind === 'file' ? n.file.loc : countLoc(n);
-  const where = n.kind === 'cap' ? '' : `${repoDot(n.repo)} ${esc(repoName[n.repo])} · `;
+  const where =
+    n.kind === 'cap' || n.kind === 'external' ? '' : `${repoDot(n.repo)} ${esc(repoName[n.repo])} · `;
   const confidence = confidenceChip(d && 'confidence' in d ? d.confidence : undefined);
-  const header = `<div class="k">${where}${kindName(n)} · ${fmt(lines)} ${t('lines')} ${confidence}</div>`;
+  const size = n.kind === 'external' ? (n.ref.system ?? '') : `${fmt(lines)} ${t('lines')}`;
+  const header = `<div class="k">${where}${kindName(n)} · ${size} ${confidence}</div>`;
   const plain = d ? L(d, 'biz') || L(d, 'tech') : '';
   const owner = n.kind === 'file' ? n.parent! : n;
   let body: string;
@@ -185,7 +223,13 @@ export function captionHtml(describing: Set<string>): string {
     body =
       `<div class="d">${esc(plain)}</div>` +
       (d && L(d, 'biz') && L(d, 'tech') ? `<div class="t">${esc(L(d, 'tech'))}</div>` : '');
-  else if (describing.has(owner.id)) body = `<div class="t wait">${t('describing')}</div>`;
-  else body = `<div class="t">${t('noDesc')}</div>`;
+  else if (n.kind === 'external') body = `<div class="t">${t('noSystemDesc')}</div>`;
+  else {
+    const status = describeStatus(owner.id);
+    if (status && 'seconds' in status)
+      body = `<div class="t wait">${t('describing')} · ${status.seconds} s</div>`;
+    else if (status) body = `<div class="t">${t('describeFailed')} ${esc(status.failed)}</div>`;
+    else body = `<div class="t">${t('noDesc')}</div>`;
+  }
   return `${header}<b>${esc(n.kind === 'module' ? modLabel(n.id) : n.name)}</b>${body}`;
 }

@@ -21,7 +21,7 @@ Work through these in order. Each step ends with a command whose output tells yo
 
 The project folder holds `.atlas/` and is where the map lives. Use the current directory. If the current directory is a git repo and its parent folder contains other git repos, ask the user once whether to map only this repo or the whole parent folder. A map can also live in one "home" repo and describe its sibling repos.
 
-The sources are the git repos inside the project folder: the folder itself if it is a repo, otherwise each direct child that is one.
+The sources are the git repos inside the project folder: the folder itself if it is a repo, otherwise each direct child that is one. In a monorepo, make each top-level app or package its own source, so the map shows them as separate blocks.
 
 ### 2. Write `.atlas/atlas.config.json`
 
@@ -52,7 +52,19 @@ Look at each source's layout with `git ls-files` and its manifests (`package.jso
 - `aliases` come from `tsconfig.json` `paths` or the bundler config, so imports resolve into edges.
 - Add `"role": "legacy"` to a source that is being retired.
 
-Run `atlas build`, then read `.atlas/out/skeleton.json` (module ids, file counts, lines). Adjust the rules and rebuild until no module swallows unrelated code, no important folder is missing, and the count is in range.
+Then declare the external systems the code talks to: databases, queues, storage, payment, email, AI and SaaS APIs. Find them in each `package.json`'s dependencies, in `.env.example` files and in the variables the code reads, and in hard-coded hosts or provider names. Add them as `externals`:
+
+```json
+"externals": [
+  { "id": "postgres", "name": "Postgres", "kind": "database", "packages": ["pg"], "env": ["DATABASE_URL"] },
+  { "id": "stripe", "name": "Stripe", "kind": "payments", "packages": ["stripe"], "env": ["STRIPE_"] },
+  { "id": "crm", "name": "CRM", "kind": "crm", "code": ["['\"]crm-provider['\"]"] }
+]
+```
+
+A file calls a system when it imports one of its `packages` (`"@aws-sdk/*"` matches every subpath), mentions one of its `env` prefixes, or matches one of its `code` regexes. Use `code` for systems reached without an SDK: a REST host, or a provider key passed to an integration proxy. Keep `kind` short and shared between similar systems.
+
+Run `atlas build`, then read `.atlas/out/skeleton.json` (module ids, file counts, lines). Adjust the rules and rebuild until no module swallows unrelated code, no important folder is missing, and the count is in range. `atlas status` lists `systemsNeverCalled`: fix those systems' signals, or drop the ones the code doesn't use.
 
 ### 3. Write `.atlas/semantic.json`
 
@@ -62,8 +74,8 @@ Read the code before you write about it: entry points, routes, the main types, R
 
 - `system`: what the whole thing is, in two or three sentences.
 - `caps`: 4 to 12 capabilities, the business-level groups a newcomer should see first. Their `rules` must place every module in exactly one.
-- `desc`: one entry per module. `biz` says what it is for in plain words, `tech` how it does it, one or two sentences each. Add one to three `anchors`, the `path:line` places that prove it. Use `"confidence": "verified"` only for what you read.
-- `flows`: the 3 to 6 paths through the code that matter most, 4 to 10 steps each, every step an existing module id with an anchor you read.
+- `desc`: one entry per module, and one per external system (`ext:<id>`) saying what the project uses it for. `biz` says what it is for in plain words, `tech` how it does it, one or two sentences each. Add one to three `anchors`, the `path:line` places that prove it. Use `"confidence": "verified"` only for what you read.
+- `flows`: the 3 to 6 paths through the code that matter most, 4 to 10 steps each. Every step is an existing module id with an anchor you read, or an external system (`ext:<id>`) where the flow leaves the code.
 - `invariants`: rules that must not break, and what guards each one.
 - `decisions`: only choices with written evidence (an ADR, a design doc, a comment that explains a why).
 

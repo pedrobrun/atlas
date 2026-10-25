@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/logo.svg" width="96" alt=""></p>
+
 # Atlas
 
 A living, semantic, 3D map of a codebase, written and kept current by the coding agent that already works in it.
@@ -8,6 +10,8 @@ Atlas keeps both layers:
 
 - a deterministic skeleton of modules, imports and hashes, which serves as evidence;
 - a semantic layer on top of it, anchored to `file:line`, that says what each part does and records the flows, the rules that must hold, and the decisions behind them.
+
+![The map of a made-up procurement system: capabilities as glass districts, external systems on a ring around them](assets/demo-root.png)
 
 > **Status: prototype.** Works with Claude Code.
 
@@ -47,10 +51,23 @@ Run `/atlas:atlas` again to open the map. Add `status` to see what is out of dat
 **In the map:**
 
 - Click a box to open it, and press Esc to go back up one level.
+- External systems (databases, queues, SaaS and AI APIs) ring the code, each linked to the code that calls it. Open a capability or a module and the systems it talks to dock beside it.
 - Ask the side chat about the architecture. It lights up the modules it is talking about.
 - Ask it to document a flow, and it traces the flow in the code for you to save.
 
 The chat and the descriptions run your own Claude Code (`claude -p`) with read-only tools, so there is no API key to set up.
+
+## Example
+
+[`examples/procurement`](examples/procurement) is a made-up company's procurement system. It has six services and nine external systems, and its flows cross all of them. Its map in `examples/procurement/.atlas/` was written by `/atlas:atlas` alone, in one run. To open it from a clone:
+
+```sh
+node src/cli.ts open examples/procurement
+```
+
+Opening a capability brings the systems it talks to next to it:
+
+![The invoice matching capability open, with S3, OpenAI and SendGrid docked beside it](assets/demo-focus.png)
 
 ## The project folder
 
@@ -59,7 +76,7 @@ A project is any folder holding one or more git repos. Its map lives with it, ne
 ```
 <project>/
   .atlas/
-    atlas.config.json        # how files group into modules
+    atlas.config.json        # how files group into modules, and which external systems to look for
     semantic.json            # what they mean: capabilities, descriptions, flows, rules, decisions
     descriptions.local.json  # descriptions the agent rewrote or wrote on first visit
     flows.local.json         # flows saved from the chat

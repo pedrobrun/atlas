@@ -7,3 +7,7 @@ node_modules/
 
 # Private terms for scripts/check-private.sh — never commit
 .private-terms
+!examples/*/.atlas/
+examples/*/.atlas/out/
+!assets/*.png
+.gstack/
