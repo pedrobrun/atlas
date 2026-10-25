@@ -215,21 +215,15 @@ exports[`skeleton and build produce the pinned map for a two-repo project 3`] = 
   "config": {
     "name": "Acme",
     "lang": "en",
-    "languages": [
-      "en",
-      "pt"
-    ],
     "sources": [
       {
         "id": "web",
         "name": "web",
-        "color": "#3b9ae8",
-        "role": null
+        "color": "#3b9ae8"
       },
       {
         "id": "billing",
-        "name": "billing-service",
-        "role": "legacy"
+        "name": "billing-service"
       }
     ],
     "suggestions": {
@@ -341,8 +335,7 @@ exports[`skeleton and build produce the pinned map for a two-repo project 3`] = 
             "tech_en": "Adds an item.",
             "confidence": "generated",
             "describedHash": "x"
-          },
-          "stale": true
+          }
         }
       ],
       "loc": 2,
@@ -528,29 +521,6 @@ exports[`skeleton and build produce the pinned map for a two-repo project 3`] = 
       "name_en": "Tax in one place"
     }
   ],
-  "decisions": [
-    {
-      "id": "0001",
-      "name": "Cobrança separada",
-      "path": "docs/0001.md",
-      "units": [
-        "billing/core/index"
-      ]
-    }
-  ],
-  "concepts": [
-    {
-      "id": "order",
-      "name": "Pedido",
-      "owner": [
-        "web/api/orders"
-      ],
-      "writes": [],
-      "reads": [
-        "web/lib/cart"
-      ]
-    }
-  ],
   "flows": [
     {
       "id": "checkout",
@@ -584,8 +554,7 @@ exports[`skeleton and build produce the pinned map for a two-repo project 3`] = 
           "text_en": "Opens home.",
           "anchor": null
         }
-      ],
-      "local": true
+      ]
     }
   ],
   "legacy": {

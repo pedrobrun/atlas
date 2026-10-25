@@ -45,7 +45,6 @@ function md(src: string) {
 }
 
 // A drafted flow arrives as a fenced atlas-flow block; while streaming, hide it until it closes.
-const drafts: Record<string, Flow> = {};
 function splitFlow(text: string): { text: string; raw: FlowDraft | null } {
   const m = text.match(/```atlas-flow\s*([\s\S]*?)```/);
   if (m) { try { return { text: text.replace(m[0], ''), raw: JSON.parse(m[1]) }; } catch { return { text: text.replace(m[0], ''), raw: null }; } }
@@ -128,7 +127,7 @@ async function ask(q: string) {
   body.innerHTML = md(answer);
   if (fl.raw) {
     const f = toFlow(fl.raw);
-    if (f.steps.length) { drafts[f.id] = f; FLOW[f.id] = f; bot.insertAdjacentHTML('beforeend', draftCard(f)); }
+    if (f.steps.length) { FLOW[f.id] = f; bot.insertAdjacentHTML('beforeend', draftCard(f)); }
   }
   if (ids.length) {
     bot.insertAdjacentHTML('beforeend', `<div class="lit">● ${ids.length} ${t('lit')} <button data-relight="${esc(ids.join(','))}">↺</button> <button data-unlight>${t('clear')}</button></div>`);
@@ -139,13 +138,13 @@ async function ask(q: string) {
 }
 
 async function saveDraft(btn: HTMLButtonElement) {
-  const f = drafts[btn.dataset.saveflow!];
+  const f = FLOW[btn.dataset.saveflow!];
   btn.disabled = true; btn.textContent = t('saving');
   try {
     const r = await post('/flows', f);
     const got: SaveFlowResponse = await r.json();
     if (!r.ok || !got.ok) throw new Error(got.log.join(' ') || String(r.status));
-    if (!D.flows.some((x) => x.id === f.id)) D.flows.push({ ...f, local: true });
+    if (!D.flows.some((x) => x.id === f.id)) D.flows.push(f);
     btn.textContent = t('saved');
     renderUI();
   } catch (e) { btn.disabled = false; btn.textContent = `${t('saveErr')} (${(e as Error).message})`; }

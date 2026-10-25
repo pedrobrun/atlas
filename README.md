@@ -42,7 +42,6 @@ npm run typecheck                    # tsc --noEmit over src/
 {
   "name": "Acme",
   "language": "en",
-  "languages": ["en", "pt"],
   "sources": [
     { "id": "web", "dir": "web", "color": "#3b9ae8", "aliases": { "@/": "src/" },
       "modules": [

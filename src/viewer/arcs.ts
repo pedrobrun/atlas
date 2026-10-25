@@ -21,7 +21,7 @@ function visibleProxy(id: string): TreeNode | null {
   }
   return null;
 }
-const topOf = (n: TreeNode) => new THREE.Vector3(n.x, n.y + n.h * (n.cur?.sy ?? 1) + 0.05, n.z);
+const topOf = (n: TreeNode) => new THREE.Vector3(n.x, n.y + n.h * n.cur.sy + 0.05, n.z);
 
 function clear() {
   if (!group) { group = new THREE.Group(); scene.add(group); }

@@ -27,7 +27,7 @@ const sk = readJson<Skeleton>(path.join(OUT, 'skeleton.json'));
 const Sm = await load<Semantic>('semantic'), EN = await load<SemanticEn>('semantic_en');
 const S = {
   system: { ...Sm.system }, caps: Sm.caps ?? [], desc: Sm.desc ?? {}, legacy: Sm.legacy ?? {}, legacyStatus: Sm.legacyStatus ?? {},
-  invariants: Sm.invariants ?? [], decisions: Sm.decisions ?? [], concepts: Sm.concepts ?? [], flows: [...(Sm.flows ?? [])] as Flow[],
+  invariants: Sm.invariants ?? [], decisions: Sm.decisions ?? [], concepts: Sm.concepts ?? [], flows: [...(Sm.flows ?? [])],
 };
 const ids = new Set(sk.nodes.map((n) => n.id));
 
@@ -46,7 +46,7 @@ const gen = readJson<DescriptionsStore>(path.join(A, 'descriptions.local.json'),
 for (const n of sk.nodes) {
   if (!n.desc && gen.nodes[n.id]) n.desc = gen.nodes[n.id];
   if (n.desc) n.stale = n.desc.describedHash !== n.hash;
-  for (const f of n.files) if (gen.files[f.path]) { f.desc = gen.files[f.path]; f.stale = f.desc.describedHash !== f.hash; }
+  for (const f of n.files) if (gen.files[f.path]) f.desc = gen.files[f.path];
 }
 for (const id of Object.keys(S.desc)) check(id, 'desc');
 for (const id of Object.keys(S.legacyStatus)) check(id, 'legacy');
@@ -78,20 +78,19 @@ for (const f of S.flows) {
 for (const f of readJson<Flow[]>(path.join(A, 'flows.local.json'), [])) {
   const bad = f.steps.filter((st) => !ids.has(st.unit)).map((st) => st.unit);
   if (bad.length) { console.error(`flow ${f.id}: unknown units ${bad.join(', ')}; dropped those steps`); f.steps = f.steps.filter((st) => ids.has(st.unit)); }
-  S.flows.push({ ...f, local: true });
+  S.flows.push(f);
 }
 
 const data: PageData = {
   config: {
-    name: config.name, lang: config.language || 'en', languages: config.languages || [config.language || 'en'],
-    sources: config.sources.map(({ id, name, dir, color, role }) => ({ id, name: name || dir, color, role: role || null })),
+    name: config.name, lang: config.language || 'en',
+    sources: config.sources.map(({ id, name, dir, color }) => ({ id, name: name || dir, color })),
     suggestions: config.chat?.suggestions || {},
   },
   system: S.system,
-  generatedAt: sk.generatedAt,
   nodes: sk.nodes, edges: sk.edges,
   caps: S.caps.map(({ rules, ...c }) => c),
-  invariants: S.invariants, decisions: S.decisions, concepts: S.concepts, flows: S.flows, legacy: S.legacy,
+  invariants: S.invariants, flows: S.flows, legacy: S.legacy,
 };
 
 // The viewer: TS modules bundled with three.js into one script, inlined so the page works offline.

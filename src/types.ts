@@ -34,7 +34,6 @@ export interface AtlasConfig {
   name: string;
   /** Language the viewer opens in. */
   language?: Lang;
-  languages?: Lang[];
   sources: SourceConfig[];
   chat?: { suggestions?: Partial<Record<Lang, string[]>> };
 }
@@ -56,7 +55,7 @@ export interface Desc {
 
 // ---------- skeleton (written by skeleton.ts) ----------
 
-export interface FileEntry { path: string; hash: string; loc: number; desc?: Desc; stale?: boolean }
+export interface FileEntry { path: string; hash: string; loc: number; desc?: Desc }
 
 export type NodeKind = 'repo' | 'area' | 'module';
 
@@ -102,8 +101,6 @@ export interface Flow {
   biz?: string; biz_en?: string;
   confidence: Confidence;
   steps: FlowStep[];
-  /** Documented from the chat rather than written by hand. */
-  local?: boolean;
 }
 
 export interface Invariant {
@@ -160,18 +157,15 @@ export interface DescriptionsStore { nodes: Record<string, Desc>; files: Record<
 
 // ---------- what build.ts embeds in the page ----------
 
-export interface PageSource { id: string; name: string; color?: string; role: string | null }
+export interface PageSource { id: string; name: string; color?: string }
 
 export interface PageData {
-  config: { name: string; lang: Lang; languages: Lang[]; sources: PageSource[]; suggestions: Partial<Record<Lang, string[]>> };
+  config: { name: string; lang: Lang; sources: PageSource[]; suggestions: Partial<Record<Lang, string[]>> };
   system: Desc;
-  generatedAt: string;
   nodes: SkNode[];
   edges: Edge[];
   caps: Omit<Capability, 'rules'>[];
   invariants: Invariant[];
-  decisions: Decision[];
-  concepts: Concept[];
   flows: Flow[];
   legacy: Record<string, LegacyStatus>;
 }

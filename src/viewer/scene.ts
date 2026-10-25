@@ -11,7 +11,7 @@ import { litSet, stepModules } from './roles.ts';
 import { animateArcs } from './arcs.ts';
 import { applyState, nav } from './nav.ts';
 
-export const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+const dark = matchMedia('(prefers-color-scheme: dark)').matches;
 
 export const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -66,7 +66,7 @@ function colorFor(n: TreeNode) {
 function makeLabel() {
   const el = document.createElement('div');
   el.className = 'lab';
-  el.innerHTML = '<span class="n"></span><span class="s"></span>';
+  el.innerHTML = '<span class="n"></span>';
   const o = new CSS2DObject(el);
   o.visible = false;
   scene.add(o);

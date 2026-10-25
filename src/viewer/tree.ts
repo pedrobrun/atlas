@@ -59,7 +59,7 @@ function moduleNode(m: SkNode): TreeNode {
     children: m.files.map((f) => mk({ id: m.id + '#' + f.path, kind: 'file', name: fileLabel(f.path), file: f, repo })) });
 }
 
-export function buildTree(): TreeNode {
+export function buildTree() {
   const root = mk({ id: 'root', kind: 'root', name: D.config.name });
   if (state.lens === 'cap') {
     root.children = D.caps.map((c, i) => mk({ id: 'cap:' + c.id, kind: 'cap', name: L(c, 'name'), cap: c, color: CAP_COLOR[i % CAP_COLOR.length],
@@ -75,7 +75,6 @@ export function buildTree(): TreeNode {
   layout(root);
   place(root, 0, 0, 0);
   view.root = root;
-  return root;
 }
 
 const GAP: Record<Kind, number> = { root: 2.4, cap: 0.6, group: 0.32, repo: 0.9, area: 0.4, module: 0.16, file: 0 };

@@ -55,7 +55,6 @@ function label(n: TreeNode, r: Role, f: TreeNode, lit: Set<string>, steps: strin
   let name = n.kind === 'module' && state.flow ? modLabel(n.id) : n.name;
   if (state.flow && r === 'closed') name = `${steps.flatMap((s, i) => (s === n.id ? [i + 1] : [])).join(' · ')}  ${modLabel(n.id)}`;
   el.querySelector('.n')!.textContent = name;
-  el.querySelector('.s')!.textContent = '';
 }
 
 /** Opens a box; a file is selected inside its module. */

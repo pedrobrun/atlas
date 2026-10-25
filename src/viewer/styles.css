@@ -38,14 +38,12 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .stale::before { content: "●"; margin-right: 5px; }
 select { font: inherit; font-size: 12px; color: var(--ink); background: var(--chip); border: 0; border-radius: 8px; padding: 4px 8px; }
 
-.hint { position: fixed; left: 16px; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); color: var(--ink-3); font-size: 12px; z-index: 5; }
+.hint { position: fixed; left: 66px; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); color: var(--ink-3); font-size: 12px; z-index: 5; }
 .hint kbd { font: 11px var(--mono); background: var(--chip); border-radius: 4px; padding: 1px 5px; }
-#up { position: fixed; left: 16px; bottom: calc(44px + env(safe-area-inset-bottom, 0px)); z-index: 5; }
+#up { position: fixed; left: 66px; bottom: calc(44px + env(safe-area-inset-bottom, 0px)); z-index: 5; }
 
 #card { position: fixed; top: calc(70px + env(safe-area-inset-top, 0px)); left: 66px; width: min(380px, calc(100vw - 82px)); max-height: calc(100vh - 100px); overflow: auto; z-index: 6;
-  background: var(--card); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid var(--line); border-radius: 16px; padding: 16px 18px 18px; box-shadow: 0 12px 40px rgba(0,0,0,.1);
-  transition: opacity .25s, transform .25s; }
-#card.off { opacity: 0; transform: translateX(16px); pointer-events: none; }
+  background: var(--card); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid var(--line); border-radius: 16px; padding: 16px 18px 18px; box-shadow: 0 12px 40px rgba(0,0,0,.1); }
 /* drawers: each side panel slides out to its edge and leaves a handle behind */
 #card, #chat { transition: transform .32s cubic-bezier(.2,.8,.2,1), opacity .25s; }
 #card.collapsed { transform: translateX(calc(-100% - 80px)); opacity: 0; pointer-events: none; }
@@ -93,7 +91,6 @@ select { font: inherit; font-size: 12px; color: var(--ink); background: var(--ch
 
 .lab { pointer-events: none; transform: translateY(-4px); text-align: center; white-space: nowrap; transition: opacity .3s; }
 .lab .n { display: inline-block; font-size: 12px; font-weight: 620; color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 7px; padding: 2px 7px; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
-.lab .s { display: block; font-size: 10.5px; color: var(--ink-3); margin-top: 2px; max-width: 220px; white-space: normal; text-shadow: 0 0 6px var(--bg1); }
 .lab.big .n { font-size: 14px; padding: 4px 10px; }
 .lab.ctx { opacity: .55; }
 .lab.ctx .n { font-weight: 500; }
@@ -107,7 +104,7 @@ select { font: inherit; font-size: 12px; color: var(--ink); background: var(--ch
 #chat { position: fixed; top: calc(70px + env(safe-area-inset-top, 0px)); left: 66px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); width: min(380px, calc(100vw - 82px)); z-index: 6;
   display: flex; flex-direction: column; background: var(--card); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 12px 40px rgba(0,0,0,.1); }
 #chat .head { display: flex; align-items: center; gap: 8px; padding: 12px 14px 10px; border-bottom: 1px solid var(--line); }
-#chat .head b { font-size: 13.5px; } #chat .head small { color: var(--ink-3); font-size: 11.5px; } #chat .head .x { position: static; margin-left: auto; }
+#chat .head b { font-size: 13.5px; } #chat .head small { color: var(--ink-3); font-size: 11.5px; }
 #msgs { flex: 1; overflow: auto; padding: 14px; display: flex; flex-direction: column; gap: 14px; }
 .msg.user { align-self: flex-end; background: var(--accent); color: #fff; border-radius: 14px 14px 4px 14px; padding: 7px 11px; max-width: 88%; white-space: pre-wrap; }
 .msg.bot { font-size: 13px; line-height: 1.5; }
@@ -152,7 +149,5 @@ body.paneled #caption { left: calc(50% + 225px); width: min(600px, calc(100vw - 
 #send { background: var(--accent); color: #fff; border-radius: 10px; padding: 7px 12px; font-weight: 600; }
 #send:disabled { opacity: .4; }
 body.paneled .hint, body.paneled #up { left: 462px; }
-.hint { left: 66px !important; } body.paneled .hint { left: 462px !important; } #up { left: 66px; }
 .lab.hl .n { background: #f2a71b; color: #2a1a00; border-color: transparent; }
-@media (max-width: 700px) { #chat { bottom: auto; height: 50vh; } }
-@media (max-width: 700px) { #card { top: auto; bottom: 12px; max-height: 45vh; } .hint { display: none; } }
+@media (max-width: 700px) { #chat { bottom: auto; height: 50vh; } #card { top: auto; bottom: 12px; max-height: 45vh; } .hint { display: none; } }
