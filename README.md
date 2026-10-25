@@ -8,12 +8,15 @@ As more code is written by agents, it gets harder to hold the architecture in yo
 
 ## Run it
 
+Needs Node 24+ (it runs the TypeScript sources directly) and, for the chat, Claude Code.
 A project is any folder holding one or more git repos, plus a `.atlas/` folder that describes them.
 
 ```sh
-node skeleton.mjs <project>          # deterministic skeleton → <project>/.atlas/out/skeleton.json
-node build.mjs <project>             # merge the semantic layer → <project>/.atlas/out/atlas.html
-node serve.mjs <project> 4317        # page + chat at http://127.0.0.1:4317
+npm install
+npm run skeleton -- <project>        # deterministic skeleton → <project>/.atlas/out/skeleton.json
+npm run build -- <project>           # merge the semantic layer, bundle the viewer → <project>/.atlas/out/atlas.html
+npm run serve -- <project> 4317      # page + chat at http://127.0.0.1:4317
+npm run typecheck                    # tsc --noEmit over src/
 ```
 
 `atlas.html` also opens straight from disk (no chat, no on-demand descriptions). The chat and the descriptions run your own Claude Code headless (`claude -p`) inside the project with read-only tools — no API key.
@@ -24,8 +27,8 @@ node serve.mjs <project> 4317        # page + chat at http://127.0.0.1:4317
 <project>/
   .atlas/
     atlas.config.json        # sources and how their paths become modules (required)
-    semantic.mjs             # semantic layer in the base language (optional)
-    semantic_en.mjs          # English twins of its text (optional)
+    semantic.ts              # semantic layer in the base language (optional; .mjs also works)
+    semantic_en.ts           # English twins of its text (optional)
     descriptions.local.json  # written by the agent when you open an undescribed module
     flows.local.json         # flows documented from the chat
     out/                     # generated: skeleton.json, atlas.html, atlas-context.md
@@ -55,17 +58,17 @@ node serve.mjs <project> 4317        # page + chat at http://127.0.0.1:4317
 
 Each `modules` rule is a regex over the file path; the first match names the area and module (`$1`, `$2` are capture groups). Imports are resolved through each package's `package.json` `exports`, relative paths, and the `aliases` you give.
 
-`semantic.mjs` exports any of: `system`, `caps` (capabilities, each with `rules` matching module ids), `desc` (per node), `flows`, `invariants`, `decisions`, `concepts`, `legacy` + `legacyStatus`. `build.mjs` checks every id against the skeleton and fails on unknown ones.
+The config and the semantic layer are typed in `src/types.ts` (`AtlasConfig`, `Semantic`, `SemanticEn`). `semantic.ts` exports any of: `system`, `caps` (capabilities, each with `rules` matching module ids), `desc` (per node), `flows`, `invariants`, `decisions`, `concepts`, `legacy` + `legacyStatus`. The build checks every id against the skeleton and fails on unknown ones.
 
 ## What's in the box
 
-| File | What it does |
+| Path | What it does |
 |---|---|
-| `skeleton.mjs` | Walks each source's `git ls-files`, maps files to areas → modules by the config rules, resolves imports into edges, hashes content. No LLM. |
-| `build.mjs` | Validates semantic ids, marks descriptions stale by hash, merges agent-written descriptions and flows, inlines Three.js, writes the page and the agent's context file. |
-| `template3d.html` | The viewer: glass districts per capability (or repo), modules as blocks sized by code, click to open down to files, dependency arcs, flow tours, EN/PT, chat, in-scene captions. |
-| `serve.mjs` | Local server: `/chat` (streams the agent's answer, which can light modules up in 3D), `/describe` (describes a module and its files on first visit, cached), `/flows` (saves a flow the chat documented). |
-| `vendor/three` | Three.js r128 + OrbitControls + CSS2DRenderer (MIT), inlined at build so the page works offline. |
+| `src/types.ts` | The contract: project config, semantic layer, skeleton, the data embedded in the page, and the server protocols. |
+| `src/skeleton.ts` | Walks each source's `git ls-files`, maps files to areas → modules by the config rules, resolves imports into edges, hashes content. No LLM. |
+| `src/build.ts` | Validates semantic ids, marks descriptions stale by hash, merges agent-written descriptions and flows, bundles the viewer with esbuild, writes one self-contained page and the agent's context file. |
+| `src/serve.ts` | Local server: `/chat` (streams the agent's answer, which can light modules up in 3D), `/describe` (describes a module and its files on first visit, cached), `/flows` (saves a flow the chat documented). |
+| `src/viewer/` | The viewer, bundled into the page. `tree.ts` lays out the nested boxes, `roles.ts` decides what is visible for a focus/flow/highlight, `scene.ts` draws and animates with three.js, `nav.ts` moves around, `panels.ts`, `chat.ts` and `pick.ts` are the UI. |
 
 ## Decisions so far
 

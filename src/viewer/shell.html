@@ -1,0 +1,21 @@
+<div id="stage"></div>
+<div id="labels"></div>
+<div class="bar">
+  <div class="pill"><span class="brand">◎ Atlas</span><div class="crumbs" id="crumbs"></div></div>
+  <div class="spacer"></div>
+  <div class="pill"><div class="seg" id="lang"><button data-v="en">EN</button><button data-v="pt">PT</button></div></div>
+  <div class="pill"><span class="lbl" data-t="lens">Lente</span><div class="seg" id="lens"><button data-v="cap">Capabilities</button><button data-v="repo">Repos</button></div></div>
+  <div class="pill"><span class="lbl" data-t="flow">Fluxo</span><select id="flowSel"><option value="">—</option></select></div>
+  <button class="pill stale" id="stalePill" hidden></button>
+</div>
+<button class="pill" id="up" hidden data-t="back">↑ voltar</button>
+<div class="hint" data-t-html="hint"></div>
+<aside id="card"></aside>
+<div id="caption" hidden></div>
+<nav id="rail"><button data-panel="ask"><span class="i">✦</span><span class="v" data-t="ask">Ask</span></button><button data-panel="details"><span class="i">◧</span><span class="v" data-t="details">Details</span></button></nav>
+<section id="chat" class="collapsed">
+  <div class="head"><b>✦ Atlas</b><small data-t="chatSub"></small></div>
+  <div id="msgs"></div>
+  <form id="ask"><div id="about"></div><div class="row2"><textarea id="q" rows="1"></textarea><button id="send" type="submit" data-t="send">Send</button></div></form>
+</section>
+<div id="tip" hidden></div>

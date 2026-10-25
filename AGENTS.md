@@ -26,5 +26,6 @@ If you are unsure whether something is specific to a real project, assume it is 
 
 ## Working here
 
-- `skeleton.mjs`, `build.mjs`, `serve.mjs` take the project folder as their first argument; see `README.md`.
-- To try changes against a real project, point the scripts at that project's folder. Its data stays there.
+- TypeScript throughout. Node runs `src/*.ts` directly (type stripping), so only erasable syntax: no `enum`, `namespace` or parameter properties; type-only imports use `import type`; local imports keep the `.ts` extension. `src/viewer` is bundled by esbuild at build time.
+- `npm run typecheck` must pass before committing.
+- The scripts take the project folder as their first argument; see `README.md`. To try changes against a real project, point them at that project's folder. Its data stays there.
