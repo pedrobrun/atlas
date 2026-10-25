@@ -1,0 +1,16 @@
+{
+  "name": "atlas",
+  "owner": {
+    "name": "Atlas"
+  },
+  "metadata": {
+    "description": "Atlas, a living 3D architecture map kept current by your coding agent"
+  },
+  "plugins": [
+    {
+      "name": "atlas",
+      "source": "./",
+      "description": "A living, semantic, 3D map of your codebase, written and kept current by your coding agent"
+    }
+  ]
+}

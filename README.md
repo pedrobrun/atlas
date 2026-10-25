@@ -1,76 +1,91 @@
 # Atlas
 
-A living, semantic, 3D map of a codebase — macro to micro, kept up to date by the agents that write the code.
+A living, semantic, 3D map of a codebase, written and kept current by the coding agent that already works in it.
 
-As more code is written by agents, it gets harder to hold the architecture in your head: which services exist, how they talk, what a module is _for_. Static dependency graphs show structure but lose meaning; generated wikis read like API docs and go stale. Atlas keeps both: a deterministic skeleton (modules, imports, hashes) as evidence, and a semantic layer (what each thing does, flows, invariants, decisions) on top, anchored to `file:line`.
+Code written by agents makes the architecture harder to hold in your head. You stop knowing which services exist, how they talk, and what a module is _for_. A dependency graph shows the structure and loses the meaning. A generated wiki reads like API docs and goes stale.
 
-> **Status: prototype.**
+Atlas keeps both layers:
 
-## Run it
+- a deterministic skeleton of modules, imports and hashes, which serves as evidence;
+- a semantic layer on top of it, anchored to `file:line`, that says what each part does and records the flows, the rules that must hold, and the decisions behind them.
 
-Needs Node 24+ (it runs the TypeScript sources directly) and, for the chat, Claude Code.
-A project is any folder holding one or more git repos, plus a `.atlas/` folder that describes them.
+> **Status: prototype.** Works with Claude Code.
 
-```sh
-npm install
-npm run skeleton -- <project>        # deterministic skeleton → <project>/.atlas/out/skeleton.json
-npm run build -- <project>           # merge the semantic layer, bundle the viewer → <project>/.atlas/out/atlas.html
-npm run serve -- <project> 4317      # page + chat at http://127.0.0.1:4317
+## Install
+
+In Claude Code:
+
+```
+/plugin install atlas --marketplace pedrobrun/atlas
 ```
 
-`atlas.html` also opens straight from disk (no chat, no on-demand descriptions). The chat and the descriptions run your own Claude Code headless (`claude -p`) inside the project with read-only tools — no API key.
+Then, in any project:
+
+```
+/atlas:atlas
+```
+
+Atlas needs Node 24 or later. There is nothing to `npm install`.
+
+## What happens
+
+**The first time**, the agent maps the project:
+
+1. It reads the repos and writes `.atlas/atlas.config.json`, which says how files group into modules.
+2. It reads the code and writes `.atlas/semantic.json` with capabilities, a description of every module, the main flows, rules and decisions.
+3. It checks both against the code until the build is clean.
+4. It opens the map at `http://127.0.0.1:4317`.
+
+**After that, the map maintains itself:**
+
+- **When a session starts**, the agent gets a short brief of the map and the path to the full one. It reads the full map before changing an area it doesn't know.
+- **When the agent changes the architecture**, it updates `semantic.json` in the same change. The brief tells it to.
+- **When a turn ends**, the skeleton is rebuilt. Module descriptions whose code changed are marked out of date and rewritten in the background.
+
+Run `/atlas:atlas` again to open the map. Add `status` to see what is out of date, or `refresh` to rewrite those descriptions now.
+
+**In the map:**
+
+- Click a box to open it, and press Esc to go back up one level.
+- Ask the side chat about the architecture. It lights up the modules it is talking about.
+- Ask it to document a flow, and it traces the flow in the code for you to save.
+
+The chat and the descriptions run your own Claude Code (`claude -p`) with read-only tools, so there is no API key to set up.
 
 ## The project folder
+
+A project is any folder holding one or more git repos. Its map lives with it, never with the tool. You can put it in a single repo, at a workspace root above several repos, or in one "home" repo that describes its siblings.
 
 ```
 <project>/
   .atlas/
-    atlas.config.json        # sources and how their paths become modules (required)
-    semantic.ts              # semantic layer in the base language (optional; .mjs also works)
-    semantic_en.ts           # English twins of its text (optional)
-    descriptions.local.json  # written by the agent when you open an undescribed module
-    flows.local.json         # flows documented from the chat
-    out/                     # generated: skeleton.json, atlas.html, atlas-context.md
+    atlas.config.json        # how files group into modules
+    semantic.json            # what they mean: capabilities, descriptions, flows, rules, decisions
+    descriptions.local.json  # descriptions the agent rewrote or wrote on first visit
+    flows.local.json         # flows saved from the chat
+    out/                     # generated, gitignore it
   web/        (a git repo)
   billing/    (a git repo)
 ```
 
-`atlas.config.json`, for a made-up shop with two repos:
+The agent writes these files, and you can edit them too. The formats are in [`skills/atlas/SKILL.md`](skills/atlas/SKILL.md) (the config) and [`skills/atlas/semantic-format.md`](skills/atlas/semantic-format.md) (the semantic layer). Every id is checked against the code on each build, and a wrong one fails with the field named.
 
-```json
-{
-  "name": "Acme",
-  "language": "en",
-  "sources": [
-    {
-      "id": "web",
-      "dir": "web",
-      "color": "#3b9ae8",
-      "aliases": { "@/": "src/" },
-      "modules": [
-        { "match": "^src/app/api/([^/]+)/", "area": "api", "module": "$1" },
-        { "match": "^src/([^/]+)/([^/.]+)", "area": "$1", "module": "$2" }
-      ]
-    },
-    {
-      "id": "billing",
-      "dir": "billing",
-      "role": "legacy",
-      "modules": [{ "match": "^lib/([^/.]+)", "area": "lib", "module": "$1" }]
-    }
-  ],
-  "chat": { "suggestions": { "en": ["How does checkout work?"] } }
-}
+## Without the plugin
+
+The same commands the agent runs:
+
+```sh
+node src/cli.ts open [dir]      # build, start the local server, open the browser
+node src/cli.ts build [dir]     # rebuild .atlas/out/
+node src/cli.ts status [dir]    # what is described, what is out of date
+node src/cli.ts refresh [dir]   # rewrite out-of-date descriptions
 ```
-
-Each `modules` rule is a regex over the file path; the first match names the area and module (`$1`, `$2` are capture groups). Imports are resolved through each package's `package.json` `exports`, relative paths, and the `aliases` you give.
-
-The config and the semantic layer are typed in `src/types.ts` (`AtlasConfig`, `Semantic`, `SemanticEn`). `semantic.ts` exports any of: `system`, `caps` (capabilities, each with `rules` matching module ids), `desc` (per node), `flows`, `invariants`, `decisions`, `concepts`, `legacy` + `legacyStatus`. The build checks every id against the skeleton and fails on unknown ones.
 
 ## Known limits
 
-- Chat answers take ~1–3 min (a full Claude Code session per question); the first visit to an undescribed module takes ~45–90 s.
-- Labels can overlap in dense districts; arcs to far modules leave the screen.
-- Not built yet: branch/PR architecture diff, `atlas sync`, hooks, generating the semantic layer (today it is hand-written or filled in on demand).
+- A chat answer takes about 1 to 3 minutes, because each question is a full Claude Code session. Describing a module on its first visit takes 45 to 90 seconds.
+- At most 8 descriptions are rewritten after a turn. Run `refresh` for the rest.
+- Labels can overlap in dense areas, and arcs to far modules leave the screen.
+- Not built yet: an architecture diff per branch or PR, a hosted view, and agents other than Claude Code.
 
 Working on Atlas itself? See [CONTRIBUTING.md](CONTRIBUTING.md).
