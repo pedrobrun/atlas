@@ -42,18 +42,27 @@ export interface AtlasConfig {
 // Content fields hold the project's base text; an `<field>_en` twin holds English.
 // The viewer picks by language and falls back to the other.
 
-export interface Anchor {
+export type Bilingual<K extends string> = { [P in K]?: string } & { [P in `${K}_en`]?: string };
+
+/** A bilingual field in one language, falling back to the other. */
+export function textOf<K extends string>(
+  o: Bilingual<K> | null | undefined,
+  k: K,
+  lang: 'en' | 'base',
+): string {
+  const fields: Partial<Record<string, string>> = { ...o };
+  const english = fields[`${k}_en`];
+  const base = fields[k];
+  return (lang === 'en' ? (english ?? base) : (base ?? english)) ?? '';
+}
+
+export interface Anchor extends Bilingual<'note'> {
   path: string;
   line: number;
   note: string;
-  note_en?: string;
 }
 
-export interface Desc {
-  biz?: string;
-  biz_en?: string;
-  tech?: string;
-  tech_en?: string;
+export interface Desc extends Bilingual<'biz' | 'tech'> {
   confidence?: Confidence;
   anchors?: Anchor[];
   /** Hash of the code the text was written against; differs from the node's hash when stale. */
@@ -82,12 +91,6 @@ export interface SkNode {
   sha?: string;
   branch?: string;
   role?: string | null;
-  // added by build.ts
-  hash?: string;
-  cap?: string | null;
-  desc?: Desc;
-  stale?: boolean;
-  legacy?: string;
 }
 
 export interface Edge {
@@ -105,63 +108,45 @@ export interface Skeleton {
 
 // ---------- semantic layer (<project>/.atlas/semantic.{ts,mjs}) ----------
 
-export interface Capability {
+export interface Capability extends Bilingual<'name' | 'biz' | 'tech'> {
   id: string;
   name: string;
-  name_en?: string;
-  biz?: string;
-  biz_en?: string;
-  tech?: string;
-  tech_en?: string;
   /** Module ids this capability claims. */
   rules: RegExp[];
 }
 
-export interface FlowStep {
+export interface FlowStep extends Bilingual<'text'> {
   unit: string;
   text: string;
-  text_en?: string;
   anchor: string | null;
 }
 
-export interface Flow {
+export interface Flow extends Bilingual<'name' | 'biz'> {
   id: string;
   name: string;
-  name_en?: string;
-  biz?: string;
-  biz_en?: string;
   confidence: Confidence;
   steps: FlowStep[];
 }
 
-export interface Invariant {
+export interface Invariant extends Bilingual<'name' | 'biz'> {
   id: string;
   name: string;
-  name_en?: string;
-  biz?: string;
-  biz_en?: string;
   guard: 'test' | 'type' | 'partial' | 'none';
   guardPath: string;
   scope: string[];
   decision?: string;
 }
 
-export interface Decision {
+export interface Decision extends Bilingual<'name' | 'note'> {
   id: string;
   name: string;
-  name_en?: string;
   path: string;
   units: string[];
-  note?: string;
-  note_en?: string;
 }
 
-export interface Concept {
+export interface Concept extends Bilingual<'name' | 'biz'> {
   id: string;
   name: string;
-  name_en?: string;
-  biz?: string;
-  biz_en?: string;
   store?: string;
   confidence?: Confidence;
   owner: string[];
@@ -169,11 +154,9 @@ export interface Concept {
   reads: string[];
 }
 
-export interface LegacyStatus {
+export interface LegacyStatus extends Bilingual<'label' | 'note'> {
   label: string;
-  label_en?: string;
   note: string;
-  note_en?: string;
 }
 
 export interface Semantic {
@@ -208,6 +191,32 @@ export interface DescriptionsStore {
   files: Record<string, Desc>;
 }
 
+// ---------- the merged map (build.ts) ----------
+
+/** A skeleton node with what the build adds: its code hash, capability, description, legacy status. */
+export interface MapNode extends SkNode {
+  hash: string;
+  cap?: string | null;
+  desc?: Desc;
+  legacy?: string;
+}
+
+/** A description is stale once the code it was written against has changed. */
+export const isStale = (n: MapNode) => !!n.desc && n.desc.describedHash !== n.hash;
+
+export interface Atlas {
+  config: PageData['config'];
+  generatedAt: string;
+  system: Desc;
+  nodes: MapNode[];
+  edges: Edge[];
+  caps: Capability[];
+  invariants: Invariant[];
+  decisions: Decision[];
+  flows: Flow[];
+  legacy: Record<string, LegacyStatus>;
+}
+
 // ---------- what build.ts embeds in the page ----------
 
 export interface PageSource {
@@ -219,7 +228,7 @@ export interface PageSource {
 export interface PageData {
   config: { name: string; lang: Lang; sources: PageSource[]; suggestions: Partial<Record<Lang, string[]>> };
   system: Desc;
-  nodes: SkNode[];
+  nodes: MapNode[];
   edges: Edge[];
   caps: Omit<Capability, 'rules'>[];
   invariants: Invariant[];

@@ -1,9 +1,9 @@
 // The map build.ts embedded in the page, and lookups over it.
-import type { Flow, PageData, SkNode } from '../types.ts';
+import type { Flow, MapNode, PageData } from '../types.ts';
 
 export const D: PageData = JSON.parse(document.getElementById('atlas-data')!.textContent!);
 
-export const N: Record<string, SkNode> = Object.fromEntries(D.nodes.map((n) => [n.id, n]));
+export const N: Record<string, MapNode> = Object.fromEntries(D.nodes.map((n) => [n.id, n]));
 export const kids: Record<string, string[]> = {};
 for (const n of D.nodes) if (n.parent) (kids[n.parent] ??= []).push(n.id);
 export const CAP = Object.fromEntries(D.caps.map((c) => [c.id, c]));
@@ -12,12 +12,12 @@ export const FLOW: Record<string, Flow> = Object.fromEntries(D.flows.map((f) => 
 export const modules = D.nodes.filter((n) => n.kind === 'module');
 
 export const repoOf = (id: string): string => {
-  let n: SkNode | undefined = N[id];
+  let n: MapNode | undefined = N[id];
   while (n && n.kind !== 'repo') n = n.parent ? N[n.parent] : undefined;
   return n ? n.id.split(':')[1] : '';
 };
 export const isUnder = (id: string, anc: string) => {
-  for (let n: SkNode | undefined = N[id]; n; n = n.parent ? N[n.parent] : undefined)
+  for (let n: MapNode | undefined = N[id]; n; n = n.parent ? N[n.parent] : undefined)
     if (n.id === anc) return true;
   return false;
 };

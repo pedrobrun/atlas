@@ -1,4 +1,5 @@
 // The top bar, the Details panel, the in-scene caption and the left rail.
+import { isStale } from '../types.ts';
 import type { Confidence, Desc, Flow, Invariant } from '../types.ts';
 import {
   CAP,
@@ -94,7 +95,7 @@ export function renderUI() {
     )
     .join('');
   $('up').hidden = f === view.root && !state.flow && !state.sel;
-  const stale = modules.filter((m) => m.stale);
+  const stale = modules.filter(isStale);
   const sp = $('stalePill');
   sp.hidden = !stale.length;
   sp.textContent = `${stale.length} ${t('stale')}`;
@@ -186,7 +187,7 @@ function cardNode(n: TreeNode) {
     <div class="kind">${sw(n.repo!)} ${esc(repoName[n.repo!])} · ${t(n.kind)} · ${fmt(countLoc(n))} ${t('lines')} ${conf(d?.confidence)} ${cap ? `<span class="chip">${esc(L(cap, 'name'))}</span>` : ''}
     ${lg ? `<span class="chip" style="color:${hex(LEGACY_COLOR[m!.legacy!] ?? 0x888888)}">● ${esc(L(lg, 'label'))}</span>` : ''}</div>
     ${ledes(d)}
-    ${m?.stale && d ? `<div class="staleBox">${t('changed')} (<code>${d.describedHash}</code> → <code>${m.hash}</code>). ${t('changedTail')}</div>` : ''}
+    ${m && isStale(m) && d ? `<div class="staleBox">${t('changed')} (<code>${d.describedHash}</code> → <code>${m.hash}</code>). ${t('changedTail')}</div>` : ''}
     ${lg ? `<p class="lede second">${esc(L(lg, 'note'))}</p>` : ''}
     ${d?.anchors?.length ? `<h3>${t('evidence')}</h3>${d.anchors.map((a) => `<div class="ev">${esc(a.path)}:${a.line}</div><div class="evn">${esc(L(a, 'note'))}</div>`).join('')}` : ''}
     ${flows.length ? `<h3>${t('flows')}</h3>${flows.map((x) => flowButton(x)).join('')}` : ''}
@@ -246,7 +247,7 @@ export function wirePanels() {
     const ds = el.dataset;
     if (el.id === 'up') goUp();
     else if (el.id === 'stalePill') {
-      const m = modules.find((x) => x.stale);
+      const m = modules.find(isStale);
       if (m) goTo(m.id);
     } else if (ds.focus) {
       state.hl = null;

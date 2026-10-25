@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DObject, CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
+import { isStale } from '../types.ts';
 import { LEGACY_COLOR, REPO_COLOR } from './data.ts';
 import { state } from './state.ts';
 import type { TreeNode } from './tree.ts';
@@ -128,7 +129,7 @@ export function buildScene() {
     world.add(mesh);
     n.mesh = mesh;
     n.edges = edges;
-    if (n.kind === 'module' && n.ref?.stale) {
+    if (n.kind === 'module' && n.ref && isStale(n.ref)) {
       n.staleMark = new THREE.Mesh(
         staleDot,
         new THREE.MeshBasicMaterial({ color: 0xf08a24, transparent: true, opacity: 0 }),

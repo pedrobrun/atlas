@@ -3,7 +3,7 @@
 // space; clicking passes through them.
 import type * as THREE from 'three';
 import type { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
-import type { FileEntry, PageData, SkNode } from '../types.ts';
+import type { FileEntry, MapNode, PageData } from '../types.ts';
 import { CAP_COLOR, D, kids, modules, N, repoName, repoOf, short, SOURCES } from './data.ts';
 import { L } from './i18n.ts';
 import { state } from './state.ts';
@@ -21,7 +21,7 @@ export interface TreeNode {
   name: string;
   children: TreeNode[];
   parent: TreeNode | null;
-  ref?: SkNode;
+  ref?: MapNode;
   cap?: PageData['caps'][number];
   file?: FileEntry;
   repo?: string;
@@ -82,7 +82,7 @@ const fileLabel = (p: string) => {
   return GENERIC.test(name) ? `${parts.pop()}/${name}` : name;
 };
 
-function moduleNode(m: SkNode): TreeNode {
+function moduleNode(m: MapNode): TreeNode {
   const repo = repoOf(m.id);
   return mk({
     id: m.id,

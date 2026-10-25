@@ -287,8 +287,7 @@ exports[`skeleton and build produce the pinned map for a two-repo project 3`] = 
         ],
         "describedHash": "a33613a4",
         "biz_en": "Takes orders."
-      },
-      "stale": false
+      }
     },
     {
       "id": "web/pages",
@@ -349,8 +348,7 @@ exports[`skeleton and build produce the pinned map for a two-repo project 3`] = 
         "biz_en": "The cart.",
         "confidence": "generated",
         "describedHash": "stale000"
-      },
-      "stale": true
+      }
     },
     {
       "id": "web/ui",
@@ -437,8 +435,7 @@ exports[`skeleton and build produce the pinned map for a two-repo project 3`] = 
         "tech": "Gera faturas.",
         "confidence": "inferred",
         "describedHash": "deadbeef"
-      },
-      "stale": true
+      }
     },
     {
       "id": "billing/core/tax",
