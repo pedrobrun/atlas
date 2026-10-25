@@ -204,25 +204,59 @@ async function saveDraft(button: HTMLButtonElement, id: string) {
   }
 }
 
-export const describing = new Set<string>();
-const failedOnce = new Set<string>();
-const gaveUp = new Set<string>();
+const DESCRIBE_TIMEOUT_MS = 5 * 60_000;
+const MAX_ATTEMPTS = 2;
+
+export type DescribeStatus = { seconds: number } | { failed: string };
+const running = new Map<string, number>();
+const attempts = new Map<string, number>();
+const failures = new Map<string, string>();
+let ticker: ReturnType<typeof setInterval> | undefined;
+
+export function describeStatus(id: string): DescribeStatus | null {
+  const since = running.get(id);
+  if (since !== undefined) return { seconds: Math.round((Date.now() - since) / 1000) };
+  const failed = failures.get(id);
+  return failed === undefined ? null : { failed };
+}
+
+async function describe(id: string): Promise<DescribeResponse> {
+  const res = await fetch('/describe', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ id }),
+    signal: AbortSignal.timeout(DESCRIBE_TIMEOUT_MS),
+  });
+  if (!res.ok) throw new Error((await res.text()).split('\n')[0] || `HTTP ${res.status}`);
+  return res.json();
+}
+
 export async function ensureDescribed(n: TreeNode | null | undefined) {
-  if (!served || n?.kind !== 'module' || describing.has(n.id) || gaveUp.has(n.id)) return;
+  if (!served || n?.kind !== 'module' || running.has(n.id)) return;
   const m = n.ref;
   if (m.desc && m.files.every((f) => f.desc)) return;
-  describing.add(n.id);
+  const tries = attempts.get(n.id) ?? 0;
+  if (tries >= MAX_ATTEMPTS) return;
+  attempts.set(n.id, tries + 1);
+  running.set(n.id, Date.now());
+  ticker ??= setInterval(renderCaption, 1000);
   renderCaption();
   try {
-    const res = await post('/describe', { id: n.id });
-    if (!res.ok) throw new Error(String(res.status));
-    const got: DescribeResponse = await res.json();
+    const got = await describe(n.id);
     if (got.module && !m.desc) m.desc = got.module;
     for (const f of m.files) if (got.files[f.path]) f.desc = got.files[f.path];
-  } catch {
-    (failedOnce.has(n.id) ? gaveUp : failedOnce).add(n.id);
+    failures.delete(n.id);
+  } catch (e) {
+    failures.set(
+      n.id,
+      e instanceof DOMException && e.name === 'TimeoutError' ? t('describeSlow') : errorText(e),
+    );
   }
-  describing.delete(n.id);
+  running.delete(n.id);
+  if (!running.size) {
+    clearInterval(ticker);
+    ticker = undefined;
+  }
   renderUI();
 }
 

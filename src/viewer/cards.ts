@@ -14,6 +14,7 @@ import {
 } from './data.ts';
 import { esc } from './dom.ts';
 import type { Key } from './i18n.ts';
+import type { DescribeStatus } from './chat.ts';
 import { fmt, L, t } from './i18n.ts';
 import { state } from './state.ts';
 import type { TreeNode } from './tree.ts';
@@ -193,7 +194,7 @@ function flowCard(f: Flow) {
   ].join('');
 }
 
-export function captionHtml(describing: Set<string>): string {
+export function captionHtml(describeStatus: (id: string) => DescribeStatus | null): string {
   const flow = FLOW[state.flow];
   if (flow) {
     const step = flow.steps[state.step];
@@ -223,7 +224,12 @@ export function captionHtml(describing: Set<string>): string {
       `<div class="d">${esc(plain)}</div>` +
       (d && L(d, 'biz') && L(d, 'tech') ? `<div class="t">${esc(L(d, 'tech'))}</div>` : '');
   else if (n.kind === 'external') body = `<div class="t">${t('noSystemDesc')}</div>`;
-  else if (describing.has(owner.id)) body = `<div class="t wait">${t('describing')}</div>`;
-  else body = `<div class="t">${t('noDesc')}</div>`;
+  else {
+    const status = describeStatus(owner.id);
+    if (status && 'seconds' in status)
+      body = `<div class="t wait">${t('describing')} · ${status.seconds} s</div>`;
+    else if (status) body = `<div class="t">${t('describeFailed')} ${esc(status.failed)}</div>`;
+    else body = `<div class="t">${t('noDesc')}</div>`;
+  }
   return `${header}<b>${esc(n.kind === 'module' ? modLabel(n.id) : n.name)}</b>${body}`;
 }

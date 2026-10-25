@@ -8,7 +8,7 @@ export const chatFlags = (prompt: string, system: string, session: string | null
 ];
 
 export const describeFlags = (prompt: string) => [
-  ...['-p', prompt, '--output-format', 'json', '--tools', 'Read', '--allowedTools', 'Read'],
+  ...['-p', prompt, '--output-format', 'json', '--tools', ''],
   ...['--strict-mcp-config', '--model', 'sonnet', '--effort', 'low'],
 ];
 
@@ -45,7 +45,15 @@ export function contextSection(context: string, id: string) {
   return start >= 0 ? context.slice(start, context.indexOf('\n###', start + 4)) : '';
 }
 
-export function describePrompt({ id, section, files }: { id: string; section: string; files: string[] }) {
+export function describePrompt({
+  id,
+  section,
+  files,
+}: {
+  id: string;
+  section: string;
+  files: { path: string; text: string }[];
+}) {
   const describeModule =
     section.includes('STALE description') || !/\[(verified|inferred|generated)\]/.test(section);
   const moduleShape = describeModule
@@ -55,17 +63,17 @@ export function describePrompt({ id, section, files }: { id: string; section: st
 Module id: ${id}
 What the map already says about it:
 ${section}
-Files (paths relative to the current directory):
-${files.map((f) => '- ' + f).join('\n')}
+Its files follow, each in a block headed by its path.
+${files.map((f) => `\n=== ${f.path}\n${f.text}`).join('\n')}
 
-Read every file. Then output ONLY one fenced block and nothing else:
+Output ONLY one fenced block and nothing else:
 \`\`\`atlas-desc
 {${moduleShape}"files":{"<path>":{"biz_en":"…","biz_pt":"…","tech_en":"…","tech_pt":"…"}}}
 \`\`\`
 biz: one plain sentence on what it is for, for someone who doesn't read code.
 tech: one or two sentences on how it does it, naming the key functions, routes or components.
 Describe the code as it is now; never mention what the map said before.
-_pt fields in Brazilian Portuguese. Use the file paths exactly as listed.`;
+_pt fields in Brazilian Portuguese. Use the file paths exactly as they appear after ===.`;
 }
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null;
