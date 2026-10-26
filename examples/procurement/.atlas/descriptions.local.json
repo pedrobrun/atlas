@@ -1,0 +1,69 @@
+{
+  "nodes": {},
+  "files": {
+    "invoicing/src/invoices/invoice-queries.ts": {
+      "biz": "Fornece as consultas que mostram quais faturas aguardam conciliação, quais estão prontas para confirmação de orçamento, quais já foram pagas e se uma fatura já existe.",
+      "biz_en": "Provides the lookups that show which invoices are waiting for a match, which are ready for budget confirmation, which have been paid, and whether an invoice already exists.",
+      "tech": "Consultas SQL somente leitura sobre invoices: listMatchedUnconfirmed, listAwaitingMatch (faz left join com invoice_exceptions abertas e mapeia para InvoiceSummary) e listPaidSince (junta pagamentos bem-sucedidos, paginado por paid_at e id, retorna PaidInvoice). Também traz as buscas de duplicidade findIdBySha e findIdByVendorInvoiceNumber, e billedSoFar, que soma quantidades e subtotais por linha da OC a partir do jsonb lines de faturas já conciliadas, em pagamento ou pagas.",
+      "tech_en": "Read-only SQL queries over invoices: listMatchedUnconfirmed, listAwaitingMatch (left-joins open invoice_exceptions and maps to InvoiceSummary), and listPaidSince (joins succeeded payments, paginated by paid_at and id, returns PaidInvoice). It also has duplicate lookups findIdBySha and findIdByVendorInvoiceNumber, and billedSoFar, which sums quantities and subtotals per PO line from the jsonb lines of already matched, paying or paid invoices.",
+      "confidence": "generated",
+      "describedHash": "d2f4212f"
+    },
+    "invoicing/src/invoices/invoice.repo.ts": {
+      "biz": "Salva novas faturas e as move com segurança de uma etapa para a próxima, mantendo o histórico de cada mudança.",
+      "biz_en": "Saves new invoices and moves them safely from one stage to the next, keeping a history of every change.",
+      "tech": "insertInvoice e findInvoice (com FOR UPDATE opcional) cuidam da criação e leitura, enquanto transitionInvoice faz compare-and-set no status em uma única CTE que trava a linha, atualiza (definindo paid_at em 'paid') e insere em invoice_status_history, lançando ConflictError se o status atual não estiver no conjunto permitido. linkPurchaseOrder vincula uma OC e completa os dados do fornecedor nas faturas que citavam aquele número de OC, e markBudgetConfirmed grava budget_confirmed_at uma única vez.",
+      "tech_en": "insertInvoice and findInvoice (optional FOR UPDATE) handle creation and reads, while transitionInvoice does a compare-and-set on status in one CTE that locks the row, updates it (setting paid_at on 'paid') and inserts into invoice_status_history, throwing ConflictError if the current status is not in the allowed set. linkPurchaseOrder attaches a PO and fills in vendor fields on invoices that referenced that PO number, and markBudgetConfirmed stamps budget_confirmed_at once.",
+      "confidence": "generated",
+      "describedHash": "3c9f3baa"
+    },
+    "invoicing/src/invoices/invoice.types.ts": {
+      "biz": "Define como uma fatura é representada no sistema, incluindo fornecedor, valores, itens e datas.",
+      "biz_en": "Defines what an invoice looks like inside the system, including its vendor, amounts, line items and dates.",
+      "tech": "Declara as interfaces Invoice e InvoiceLine e a função toInvoice, que converte uma linha do banco em snake_case para o formato Invoice em camelCase.",
+      "tech_en": "Declares the Invoice and InvoiceLine interfaces and toInvoice, which converts a snake_case database row into the camelCase Invoice shape.",
+      "confidence": "generated",
+      "describedHash": "2493d2e1"
+    },
+    "invoicing/src/jobs/payment-scheduler.ts": {
+      "biz": "Inicia o pagamento diário aos fornecedores no horário certo e garante que apenas uma cópia do sistema o execute.",
+      "biz_en": "Starts the daily vendor payment run at the right time and makes sure only one copy of the system does it.",
+      "tech": "maybeRunPayments verifica a hora UTC configurada e a tabela payment_runs em busca de uma execução concluída hoje, e então obtém um advisory lock do Postgres (pg_try_advisory_lock) antes de chamar runPaymentRun. startPaymentScheduler a executa periodicamente, e a flag --now força uma execução.",
+      "tech_en": "maybeRunPayments checks the configured UTC hour and payment_runs for a finished run today, then takes a Postgres advisory lock (pg_try_advisory_lock) before calling runPaymentRun. startPaymentScheduler polls it on an interval, and a --now flag forces a run.",
+      "confidence": "generated",
+      "describedHash": "42364f70"
+    },
+    "invoicing/src/payments/pay-invoice.ts": {
+      "biz": "Paga uma única fatura a um fornecedor garantindo que a mesma fatura nunca seja paga duas vezes, mesmo após falhas ou novas tentativas.",
+      "biz_en": "Pays a single invoice to a vendor in a way that guarantees the same invoice is never paid twice, even after crashes or retries.",
+      "tech": "payInvoice reivindica a linha de payments da fatura e envia a transferência com uma chave de payoutIdempotencyKey, derivada somente do id da fatura. Retorna paid, already_paid (concluindo a atualização da fatura após uma falha), retry_later para erros transitórios ou failed, com todos os efeitos colaterais injetados via PaymentDeps.",
+      "tech_en": "payInvoice claims the invoice's payments row, then sends the transfer with a key from payoutIdempotencyKey, derived only from the invoice id. It returns paid, already_paid (finishing the invoice update after a crash), retry_later for transient errors, or failed, with all side effects injected through PaymentDeps.",
+      "confidence": "generated",
+      "describedHash": "164a2623"
+    },
+    "invoicing/src/payments/payment-run.ts": {
+      "biz": "Executa o lote diário que encontra todas as faturas prontas e as paga, ignorando fornecedores que ainda não podem receber, e informa os totais.",
+      "biz_en": "Runs the daily batch that finds every invoice that is ready and pays it, skipping vendors who can't be paid yet, and reports totals.",
+      "tech": "runPaymentRun confirma o consumo de orçamento pendente, registra uma linha em payment_runs e usa listPayable para selecionar faturas conciliadas, com orçamento confirmado e vencimento dentro do horizonte. Para cada uma, consulta a conta de pagamento do fornecedor, ignora fornecedores inativos ou com moeda divergente, move a fatura para paying, chama payInvoice e grava um RunSummary. Pagamentos que falham abrem uma exceção payment_failed.",
+      "tech_en": "runPaymentRun confirms pending budget consumption, records a payment_runs row, and uses listPayable to select matched, budget-confirmed invoices due within the horizon. For each it looks up the vendor payout account, skips inactive or currency-mismatched vendors, moves the invoice to paying, calls payInvoice, and writes a RunSummary. Failed payouts open a payment_failed exception.",
+      "confidence": "generated",
+      "describedHash": "3f7d6750"
+    },
+    "invoicing/src/payments/payment.repo.ts": {
+      "biz": "Mantém o registro de cada pagamento, de modo que exista exatamente um por fatura e seu status seja sempre conhecido.",
+      "biz_en": "Keeps the record of each payment so there is exactly one per invoice and its status is always known.",
+      "tech": "claimPayment insere uma linha pending em payments com ON CONFLICT (invoice_id), de modo que cada fatura tenha uma única linha, devolve uma linha pendente ou finalizada já existente e lança erro se o valor mudou. markPaymentSucceeded e markPaymentFailed atualizam a linha apenas enquanto ela ainda está pending.",
+      "tech_en": "claimPayment inserts a pending payments row with ON CONFLICT (invoice_id) so each invoice has a single row, returns an existing pending or finished row, and throws if the amount changed. markPaymentSucceeded and markPaymentFailed update the row only while it is still pending.",
+      "confidence": "generated",
+      "describedHash": "75670941"
+    },
+    "invoicing/src/payments/stripe-payouts.ts": {
+      "biz": "Envia o dinheiro de fato ao fornecedor por meio do Stripe.",
+      "biz_en": "Sends the actual money to a vendor through Stripe.",
+      "tech": "createVendorTransfer chama stripe.transfers.create com a chave de idempotência e os metadados da fatura. Retorna um resultado em vez de lançar exceção: erros de conexão, de API e de limite de taxa são marcados como retentáveis, e os demais erros do Stripe são permanentes. O módulo falha ao carregar se STRIPE_SECRET_KEY não estiver definida.",
+      "tech_en": "createVendorTransfer calls stripe.transfers.create with the supplied idempotency key and invoice metadata. It returns a result and not an exception: connection, API and rate-limit errors are marked retryable, other Stripe errors are permanent. The module throws at load if STRIPE_SECRET_KEY is missing.",
+      "confidence": "generated",
+      "describedHash": "b4f98b17"
+    }
+  }
+}

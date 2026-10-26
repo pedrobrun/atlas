@@ -11,7 +11,7 @@ Atlas keeps both layers:
 - a deterministic skeleton of modules, imports and hashes, which serves as evidence;
 - a semantic layer on top of it, anchored to `file:line`, that says what each part does and records the flows, the rules that must hold, and the decisions behind them.
 
-![The map of a made-up procurement system: capabilities as glass districts, external systems on a ring around them](assets/demo-root.png)
+![The map of a made-up procurement system: capabilities as glass districts, external systems on a ring around them](assets/demo-root.jpg)
 
 > **Status: prototype.** Works with Claude Code.
 
@@ -67,7 +67,15 @@ node src/cli.ts open examples/procurement
 
 Opening a capability brings the systems it talks to next to it:
 
-![The invoice matching capability open, with S3, OpenAI and SendGrid docked beside it](assets/demo-focus.png)
+![The invoice matching capability open, with S3, OpenAI and SendGrid docked beside it](assets/demo-focus.jpg)
+
+Details shows what a module is for, the lines that prove it, the flows and rules it takes part in, and what it uses and what uses it:
+
+![The details panel for the invoice matching module](assets/demo-details.jpg)
+
+Ask answers from the map and the code. It cites modules and lines, and lights up the modules it talks about:
+
+![The ask panel answering how a supplier invoice gets paid, with twelve modules lit](assets/demo-ask.jpg)
 
 ## The project folder
 

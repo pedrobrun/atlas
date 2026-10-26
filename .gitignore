@@ -9,5 +9,4 @@ node_modules/
 .private-terms
 !examples/*/.atlas/
 examples/*/.atlas/out/
-!assets/*.png
 .gstack/
