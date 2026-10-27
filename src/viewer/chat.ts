@@ -10,7 +10,17 @@ import { renderCaption, renderUI } from './panels.ts';
 import { confidenceChip, repoDot } from './html.ts';
 import { readAnswer, toFlow } from './answer.ts';
 
-const served = location.protocol.startsWith('http');
+let served = false;
+if (location.protocol.startsWith('http')) {
+  fetch('/health')
+    .then((r) => r.ok && r.headers.get('content-type')?.includes('json'))
+    .then((ok) => {
+      served = !!ok;
+      messages.querySelector('.empty')?.remove();
+      renderChat();
+    })
+    .catch(() => {});
+}
 const messages = byId('msgs');
 const input = byId<HTMLTextAreaElement>('q');
 const send = byId<HTMLButtonElement>('send');

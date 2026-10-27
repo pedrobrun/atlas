@@ -71,7 +71,7 @@ const pt = {
   placeholder: 'Como funciona…? O que quebra se…?',
   chatErr: 'Não consegui responder',
   needServe:
-    'O chat precisa do servidor local. Rode <code>npm run serve -- &lt;projeto&gt;</code> e abra pelo endereço que ele mostrar.',
+    'O chat roda o Claude Code na sua máquina. Abra o mapa com <code>/atlas:atlas</code> no Claude Code para perguntar.',
 };
 export type Key = keyof typeof pt;
 const en: Record<Key, string> = {
@@ -143,7 +143,7 @@ const en: Record<Key, string> = {
   placeholder: 'How does…? What breaks if…?',
   chatErr: "Couldn't answer",
   needServe:
-    'Chat needs the local server. Run <code>npm run serve -- &lt;project&gt;</code> and open the address it prints.',
+    'The chat runs Claude Code on your machine. Open the map with <code>/atlas:atlas</code> in Claude Code to ask about it.',
 };
 const SUGG = {
   pt: [
