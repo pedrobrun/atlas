@@ -15,6 +15,8 @@ Atlas keeps both layers:
 
 > **Status: prototype.** Works with Claude Code.
 
+[Explore the example map in your browser](https://pedrobrun.github.io/atlas/).
+
 ## Install
 
 In Claude Code:

@@ -1,0 +1,517 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Atlas: a 3D map of your codebase, kept current by Claude Code</title>
+    <meta
+      name="description"
+      content="Atlas maps what each part of your codebase does, the external systems it calls, and the lines that prove it. Claude Code writes the map and keeps it current."
+    />
+    <meta property="og:title" content="Atlas" />
+    <meta
+      property="og:description"
+      content="A 3D map of your codebase, written and kept current by Claude Code."
+    />
+    <meta property="og:image" content="assets/demo-root.jpg" />
+    <link rel="icon" href="assets/logo.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --ground: #151412;
+        --raised: #1f1e1b;
+        --ink: #eceae5;
+        --ink-2: #b3afa6;
+        --ink-3: #85817a;
+        --line: rgba(255, 255, 255, 0.1);
+        --violet: #947ff4;
+        --violet-deep: #7c63f2;
+        --sans: 'Bricolage Grotesque', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        background: var(--ground);
+      }
+      body {
+        margin: 0;
+        padding-inline: clamp(16px, 4vw, 48px);
+        font: 400 17px/1.55 var(--sans);
+        font-optical-sizing: auto;
+        color: var(--ink);
+        background: radial-gradient(ellipse 90% 60% at 60% 0%, #23211e, transparent 70%), var(--ground);
+      }
+      a {
+        color: inherit;
+        text-underline-offset: 3px;
+        text-decoration-color: var(--ink-3);
+      }
+      a:hover {
+        text-decoration-color: var(--violet);
+      }
+      :focus-visible {
+        outline: 2px solid var(--violet);
+        outline-offset: 3px;
+        border-radius: 4px;
+      }
+      img {
+        max-width: 100%;
+        display: block;
+      }
+      code {
+        font-family: var(--mono);
+        font-size: 0.88em;
+      }
+      .wrap {
+        max-width: 1240px;
+        margin-inline: auto;
+      }
+
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding-block: 22px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 650;
+        font-size: 19px;
+        text-decoration: none;
+      }
+      .brand img {
+        width: 30px;
+      }
+      header nav {
+        display: flex;
+        gap: 24px;
+        font-size: 15px;
+        color: var(--ink-2);
+      }
+      header nav a {
+        text-decoration: none;
+      }
+      header nav a:hover {
+        color: var(--ink);
+      }
+
+      .intro {
+        display: grid;
+        grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+        gap: clamp(28px, 5vw, 72px);
+        align-items: end;
+        padding-block: clamp(40px, 8vw, 96px) 40px;
+      }
+      h1 {
+        margin: 0;
+        font-size: clamp(40px, 6.4vw, 80px);
+        line-height: 0.98;
+        font-weight: 650;
+        letter-spacing: -0.035em;
+        font-variation-settings: 'opsz' 96;
+        text-wrap: balance;
+      }
+      .lede {
+        margin: 0 0 22px;
+        color: var(--ink-2);
+        max-width: 46ch;
+        text-wrap: pretty;
+      }
+
+      .install {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--raised);
+        overflow: hidden;
+      }
+      .install p {
+        margin: 0;
+        padding: 10px 14px;
+        font-size: 13px;
+        color: var(--ink-3);
+        border-bottom: 1px solid var(--line);
+      }
+      .cmd {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 14px;
+      }
+      .cmd + .cmd {
+        border-top: 1px solid var(--line);
+      }
+      .cmd code {
+        flex: 1;
+        overflow-x: auto;
+        white-space: nowrap;
+        font-size: 14px;
+      }
+      .cmd code::before {
+        content: '> ';
+        color: var(--violet);
+      }
+      .cmd button {
+        font: 500 13px var(--sans);
+        color: var(--ink-2);
+        background: none;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        padding: 4px 10px;
+        cursor: pointer;
+      }
+      .cmd button:hover {
+        color: var(--ink);
+        border-color: var(--ink-3);
+      }
+
+      .stage {
+        position: relative;
+        height: min(78vh, 820px);
+        min-height: 460px;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        overflow: hidden;
+        background: #121211;
+        box-shadow: 0 40px 120px -40px rgba(124, 99, 242, 0.35);
+      }
+      .stage iframe {
+        width: 100%;
+        height: 100%;
+        border: 0;
+        display: block;
+      }
+      .stage .wake {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: end center;
+        padding-bottom: 28px;
+        border: 0;
+        width: 100%;
+        background: none;
+        cursor: pointer;
+        font: inherit;
+        color: var(--ink);
+      }
+      .stage .wake span {
+        padding: 9px 16px;
+        border-radius: 999px;
+        background: rgba(21, 20, 18, 0.82);
+        border: 1px solid var(--line);
+        font-size: 15px;
+        backdrop-filter: blur(8px);
+      }
+      .stage.awake .wake {
+        display: none;
+      }
+      .stage .poster {
+        display: none;
+      }
+      .caption {
+        margin: 14px 2px 0;
+        font-size: 15px;
+        color: var(--ink-3);
+        max-width: 70ch;
+      }
+
+      section {
+        padding-block: clamp(72px, 10vw, 128px) 0;
+      }
+      h2 {
+        margin: 0 0 12px;
+        font-size: clamp(28px, 3.4vw, 40px);
+        line-height: 1.1;
+        font-weight: 620;
+        letter-spacing: -0.02em;
+        text-wrap: balance;
+      }
+      .section-lede {
+        margin: 0;
+        color: var(--ink-2);
+        max-width: 60ch;
+      }
+
+      .cycle {
+        list-style: none;
+        margin: 40px 0 0;
+        padding: 0;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        border-top: 1px solid var(--line);
+        counter-reset: step;
+      }
+      .cycle li {
+        padding: 22px 28px 0 0;
+        counter-increment: step;
+      }
+      .cycle li + li {
+        padding-left: 28px;
+        border-left: 1px solid var(--line);
+      }
+      .cycle h3 {
+        margin: 0 0 8px;
+        font-size: 20px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      .cycle h3::before {
+        content: counter(step);
+        display: inline-grid;
+        place-items: center;
+        width: 26px;
+        height: 26px;
+        margin-right: 10px;
+        border-radius: 50%;
+        background: var(--violet-deep);
+        color: #fff;
+        font-size: 14px;
+        vertical-align: 2px;
+      }
+      .cycle p {
+        margin: 0;
+        color: var(--ink-2);
+        font-size: 16px;
+      }
+
+      .panels {
+        margin-top: 40px;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 28px;
+      }
+      figure {
+        margin: 0;
+      }
+      figure img {
+        border-radius: 14px;
+        border: 1px solid var(--line);
+      }
+      figcaption {
+        margin-top: 14px;
+        color: var(--ink-2);
+        font-size: 16px;
+        max-width: 52ch;
+      }
+      figcaption b {
+        color: var(--ink);
+        font-weight: 600;
+      }
+
+      .facts {
+        margin: 40px 0 0;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 28px 40px;
+      }
+      .facts dt {
+        font-weight: 600;
+        margin-bottom: 6px;
+      }
+      .facts dd {
+        margin: 0;
+        color: var(--ink-2);
+        font-size: 16px;
+      }
+
+      footer {
+        margin-top: clamp(72px, 10vw, 128px);
+        padding-block: 28px 40px;
+        border-top: 1px solid var(--line);
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 12px;
+        color: var(--ink-3);
+        font-size: 15px;
+      }
+
+      @media (max-width: 860px) {
+        .intro,
+        .panels,
+        .facts {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .cycle {
+          grid-template-columns: 1fr;
+          border-top: 0;
+        }
+        .cycle li,
+        .cycle li + li {
+          padding: 20px 0 0;
+          border-left: 0;
+          border-top: 1px solid var(--line);
+          margin-top: 20px;
+        }
+      }
+      @media (pointer: coarse), (max-width: 600px) {
+        .stage {
+          height: auto;
+          min-height: 0;
+        }
+        .stage iframe,
+        .stage .wake {
+          display: none;
+        }
+        .stage .poster {
+          display: block;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <a class="brand" href="./"><img src="assets/logo.svg" alt="" />Atlas</a>
+        <nav>
+          <a href="#how">How it works</a>
+          <a href="https://github.com/pedrobrun/atlas">GitHub</a>
+        </nav>
+      </header>
+
+      <div class="intro">
+        <h1>A 3D map of your codebase, kept current by Claude Code.</h1>
+        <div>
+          <p class="lede">
+            Agents write code faster than you can hold the architecture in your head. Atlas shows what each
+            part is for, which external systems it calls, and the lines that prove it. It updates itself as
+            the agent works.
+          </p>
+          <div class="install">
+            <p>In Claude Code</p>
+            <div class="cmd">
+              <code>/plugin install atlas --marketplace pedrobrun/atlas</code
+              ><button type="button">Copy</button>
+            </div>
+            <div class="cmd"><code>/atlas:atlas</code><button type="button">Copy</button></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="stage" id="stage">
+        <iframe src="demo.html" title="Atlas map of a made-up procurement system" loading="eager"></iframe>
+        <button class="wake" type="button"><span>Click to explore the map</span></button>
+        <a class="poster" href="demo.html">
+          <img src="assets/demo-root.jpg" alt="The map of a made-up procurement system" />
+        </a>
+      </div>
+      <p class="caption">
+        This is the real viewer, on a made-up procurement system with six services and nine external systems.
+        Drag to orbit, click a box to open it, press Esc to go back up.
+        <a href="demo.html">Open it full screen</a>.
+      </p>
+
+      <section id="how">
+        <h2>It writes the map once, then keeps it current</h2>
+        <p class="section-lede">
+          The map has two layers. A skeleton of modules, imports and file hashes is built from the code. On
+          top of it, the agent writes what each part does, the main flows, the rules that must hold, and the
+          decisions behind them, each anchored to a file and line.
+        </p>
+        <ol class="cycle">
+          <li>
+            <h3>The first run</h3>
+            <p>
+              <code>/atlas:atlas</code> reads your repos and writes the map. It checks every id against the
+              code and fixes the map until the build is clean.
+            </p>
+          </li>
+          <li>
+            <h3>Every session</h3>
+            <p>
+              The agent starts with a short brief of the map. Before changing an area it doesn't know, it
+              reads the full map.
+            </p>
+          </li>
+          <li>
+            <h3>Every turn</h3>
+            <p>
+              When a turn ends, the skeleton is rebuilt. Descriptions whose code changed are marked out of
+              date and rewritten in the background.
+            </p>
+          </li>
+        </ol>
+      </section>
+
+      <section>
+        <h2>Read a module, or ask about the system</h2>
+        <div class="panels">
+          <figure>
+            <img
+              src="assets/demo-details.jpg"
+              alt="The details panel for an invoice matching module"
+              loading="lazy"
+            />
+            <figcaption>
+              <b>Details</b> shows what a module is for, the lines that prove it, the flows and rules it takes
+              part in, and what it uses.
+            </figcaption>
+          </figure>
+          <figure>
+            <img
+              src="assets/demo-ask.jpg"
+              alt="The ask panel explaining how a supplier invoice gets paid, with twelve modules lit"
+              loading="lazy"
+            />
+            <figcaption>
+              <b>Ask</b> answers from the map and the code. It cites lines and lights up the modules it talks
+              about.
+            </figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section>
+        <h2>Local, and in your repo</h2>
+        <dl class="facts">
+          <div>
+            <dt>The map lives with the code</dt>
+            <dd>
+              It is a few JSON files in your project's <code>.atlas/</code> folder. Commit them, review them,
+              edit them by hand.
+            </dd>
+          </div>
+          <div>
+            <dt>No API key, no server of ours</dt>
+            <dd>
+              The chat and the descriptions run your own Claude Code with read-only tools. The map opens on
+              <code>127.0.0.1</code>.
+            </dd>
+          </div>
+          <div>
+            <dt>What it needs</dt>
+            <dd>Claude Code and Node 24 or later. There is nothing to <code>npm install</code>.</dd>
+          </div>
+        </dl>
+      </section>
+
+      <footer>
+        <span>Atlas is a prototype. It works with Claude Code today.</span>
+        <a href="https://github.com/pedrobrun/atlas">Source on GitHub</a>
+      </footer>
+    </div>
+    <script>
+      const stage = document.getElementById('stage');
+      stage.querySelector('.wake').addEventListener('click', () => {
+        stage.classList.add('awake');
+        stage.querySelector('iframe').focus();
+      });
+      for (const button of document.querySelectorAll('.cmd button')) {
+        button.addEventListener('click', async () => {
+          await navigator.clipboard.writeText(button.previousElementSibling.textContent);
+          button.textContent = 'Copied';
+          setTimeout(() => (button.textContent = 'Copy'), 1500);
+        });
+      }
+    </script>
+  </body>
+</html>

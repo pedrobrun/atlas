@@ -17,7 +17,8 @@
     "test": "node --test test/*.test.ts",
     "test:update": "node --test --test-update-snapshots test/*.test.ts",
     "check": "tsc --noEmit && prettier --check . && node src/bundle.ts --check && node --test test/*.test.ts && scripts/check-private.sh",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "site": "scripts/build-site.sh"
   },
   "devDependencies": {
     "@types/node": "24.19.2",
