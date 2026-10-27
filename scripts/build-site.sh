@@ -4,6 +4,7 @@
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
+node src/skeleton.ts examples/procurement
 node src/build.ts examples/procurement
 rm -rf site/out
 mkdir -p site/out/assets
