@@ -64,6 +64,8 @@ Then declare the external systems the code talks to: databases, queues, storage,
 
 A file calls a system when it imports one of its `packages` (`"@aws-sdk/*"` matches every subpath), mentions one of its `env` prefixes, or matches one of its `code` regexes. Use `code` for systems reached without an SDK: a REST host, or a provider key passed to an integration proxy. Keep `kind` short and shared between similar systems.
 
+An integration platform (Nango, Merge, Paragon, an in-house connector registry) hides the providers behind it: there is no SDK or env variable per provider. List every provider key the code passes to it or stores (`'google-drive'`, `'salesforce'`, in connector folders, provider enums, connect routes and migrations' defaults), and declare one external system per provider as well as one for the platform.
+
 Run `atlas build`, then read `.atlas/out/skeleton.json` (module ids, file counts, lines). Adjust the rules and rebuild until no module swallows unrelated code, no important folder is missing, and the count is in range. `atlas status` lists `systemsNeverCalled`: fix those systems' signals, or drop the ones the code doesn't use.
 
 ### 3. Write `.atlas/semantic.json`
