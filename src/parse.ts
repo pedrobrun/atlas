@@ -122,8 +122,7 @@ export function parseDescribeRequest(v: unknown): DescribeRequest {
   return { id: string(object(v, 'describe request').id, 'id') };
 }
 
-const confidence = (v: unknown, what: string) =>
-  oneOf(v, ['verified', 'inferred', 'generated'] as const, what);
+const confidence = (v: unknown, what: string) => oneOf(v, ['verified', 'generated'] as const, what);
 
 function flowStep(v: unknown, what: string): FlowStep {
   const s = object(v, what);
@@ -131,7 +130,7 @@ function flowStep(v: unknown, what: string): FlowStep {
     unit: string(s.unit, `${what}.unit`),
     text: string(s.text, `${what}.text`),
     text_en: optionalString(s.text_en, `${what}.text_en`),
-    anchor: nullableString(s.anchor, `${what}.anchor`),
+    anchor: string(s.anchor, `${what}.anchor`),
   };
 }
 
@@ -269,6 +268,13 @@ function legacyStatus(v: unknown, what: string): LegacyStatus {
   };
 }
 
+function groundedDesc(v: unknown, what: string): Desc {
+  const d = desc(v, what);
+  if (!d.anchors?.length)
+    throw new Error(`${what}.anchors: expected the path:line places in the code that prove it`);
+  return d;
+}
+
 export function parseSemantic(v: unknown): Semantic {
   const s = object(v, 'semantic.json');
   const list = <T>(k: string, item: (x: unknown, what: string) => T) =>
@@ -276,7 +282,7 @@ export function parseSemantic(v: unknown): Semantic {
   return {
     system: optional(s.system, 'system', desc),
     caps: list('caps', capability),
-    desc: optional(s.desc, 'desc', (x, w) => record(x, w, desc)),
+    desc: optional(s.desc, 'desc', (x, w) => record(x, w, groundedDesc)),
     legacy: optional(s.legacy, 'legacy', (x, w) => record(x, w, legacyStatus)),
     legacyStatus: optional(s.legacyStatus, 'legacyStatus', stringRecord),
     invariants: list('invariants', invariant),

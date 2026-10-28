@@ -15,7 +15,6 @@ const merge = (written: Desc | undefined, stored: Desc | undefined) =>
     config: { name: 'Acme', sources: [] },
     skeleton,
     semantic: { desc: written && { 'web/src/orders': written } },
-    english: {},
     descriptions: { nodes: stored ? { 'web/src/orders': stored } : {}, files: {} },
     savedFlows: [],
   }).atlas.nodes[0].desc?.biz;

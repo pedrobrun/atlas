@@ -8,7 +8,6 @@ const chip = (text: string, tone = '') => `<span class="chip${tone ? ' ' + tone 
 
 const CONFIDENCE: Record<Confidence, { key: Key; tone: string }> = {
   verified: { key: 'verified', tone: 'ok' },
-  inferred: { key: 'inferred', tone: 'warn' },
   generated: { key: 'generated', tone: '' },
 };
 export const confidenceChip = (c: Confidence | undefined) =>

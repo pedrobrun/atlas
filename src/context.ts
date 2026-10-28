@@ -94,9 +94,7 @@ export function renderContext(atlas: Atlas): string {
     lines.push('## Flows');
     for (const f of flows) {
       lines.push(`### flow:${f.id} — ${english(f, 'name')} [${f.confidence}]`);
-      f.steps.forEach((s, i) =>
-        lines.push(`${i + 1}. ${s.unit} — ${english(s, 'text')}${s.anchor ? ` (${s.anchor})` : ''}`),
-      );
+      f.steps.forEach((s, i) => lines.push(`${i + 1}. ${s.unit} — ${english(s, 'text')} (${s.anchor})`));
       lines.push('');
     }
   }

@@ -164,13 +164,10 @@ async function sessionStart(project: string) {
   if (!fs.existsSync(atlasPaths(project).skeleton) && !run('skeleton', project)) return;
   const { atlas } = await loadAtlas(project);
   const store = atlasPaths(project).store;
-  const semantic = ['semantic.json', 'semantic.ts', 'semantic.mjs', 'semantic.js']
-    .map((f) => path.join(store, f))
-    .find((f) => fs.existsSync(f));
   const brief = renderBrief(atlas, {
     cli,
     context: atlasPaths(project).context,
-    semantic: semantic ?? path.join(store, 'semantic.json'),
+    semantic: path.join(store, 'semantic.json'),
     reference: path.join(root, 'skills', 'atlas', 'semantic-format.md'),
   });
   console.log(

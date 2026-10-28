@@ -6,6 +6,8 @@ Every id it mentions must exist in `.atlas/out/skeleton.json`. Module ids look l
 
 Every key is optional, but a useful map has `system`, `caps`, a `desc` for every module, and a few `flows`.
 
+Write only what you read in the code. Every description carries the `path:line` places that prove it, and every flow step its anchor. `atlas build` refuses one that has none. If you can't find the code behind a claim, leave the claim out.
+
 ```json
 {
   "system": {
@@ -23,7 +25,11 @@ Every key is optional, but a useful map has `system`, `caps`, a `desc` for every
   "desc": {
     "ext:stripe": {
       "biz": "Charges the customer's card.",
-      "tech": "Payment intents through the stripe SDK, created by web/api/orders."
+      "tech": "Payment intents through the stripe SDK, created by web/api/orders.",
+      "confidence": "verified",
+      "anchors": [
+        { "path": "web/src/app/api/orders/route.ts", "line": 20, "note": "creates the payment intent" }
+      ]
     },
     "web/api/orders": {
       "biz": "Takes the order once the customer pays.",
@@ -80,12 +86,12 @@ Every key is optional, but a useful map has `system`, `caps`, a `desc` for every
 - **`caps`** are capabilities, the first level a reader sees. Each has `id`, `name`, optional `biz` and `tech`, and `rules`, regexes over module ids. A module belongs to the first capability whose rule matches it, and `atlas build` lists the modules none of them claims.
 - **`desc`** maps a node id, usually a module or an `ext:` system, to its description:
   - `biz` and `tech` hold the text;
-  - `confidence` is `verified`, `inferred` or `generated`;
-  - `anchors` are `{ path, line, note }` items, with paths relative to the project folder.
+  - `confidence` is `verified` for what an agent wrote here after reading the code, and `generated` for what Atlas wrote on its own from a module's files (those live in `descriptions.local.json`);
+  - `anchors` are one or more `{ path, line, note }` items, with paths relative to the project folder. They are required.
 
   `atlas build` adds a `describedHash` to each entry. That is how the map knows a description is out of date when its code changes. Leave the field alone, or delete it after rewriting an entry by hand.
 
-- **`flows`** are named paths through existing code. Each has `id`, `name`, optional `biz`, a `confidence`, and `steps`. A step is `{ unit, text, anchor }`, where `unit` is a module id or an `ext:` system and `anchor` is `"path:line"` or `null`.
+- **`flows`** are named paths through existing code. Each has `id`, `name`, optional `biz`, a `confidence`, and `steps`. A step is `{ unit, text, anchor }`, where `unit` is a module id or an `ext:` system and `anchor` is the `"path:line"` that shows the step happening.
 - **`invariants`** are rules that must not break. Each has `id`, `name`, optional `biz`, a `guard`, a `guardPath` and a `scope`:
   - `guard` says what enforces the rule: `test`, `type`, `partial` or `none`;
   - `guardPath` is the file that does it, or `""`;
