@@ -9,7 +9,7 @@ Code written by agents makes the architecture harder to hold in your head. You s
 Atlas keeps both layers:
 
 - a deterministic skeleton of modules, imports and hashes, which serves as evidence;
-- a semantic layer on top of it, anchored to `file:line`, that says what each part does and records the flows, the rules that must hold, and the decisions behind them.
+- a semantic layer on top of it, anchored to `file:line`, that says what each part does and explains why each part uses the parts it imports, and records the main flows and the decisions behind them.
 
 ![The map of a made-up procurement system: capabilities as glass districts, external systems on a ring around them](assets/demo-root.jpg)
 
@@ -71,7 +71,7 @@ Opening a capability brings the systems it talks to next to it:
 
 ![The invoice matching capability open, with S3, OpenAI and SendGrid docked beside it](assets/demo-focus.jpg)
 
-Details shows what a module is for, the lines that prove it, the flows and rules it takes part in, and what it uses and what uses it:
+Details shows what a module is for, the lines that prove it, the flows it takes part in, and what it uses and what uses it, each with the reason:
 
 ![The details panel for the invoice matching module](assets/demo-details.jpg)
 
@@ -88,8 +88,8 @@ A project is any folder holding one or more git repos. Its map lives with it, ne
   .atlas/
     atlas.config.json        # how files group into modules, and which external systems to look for
     semantic.json            # what they mean: capabilities, descriptions, flows, rules, decisions
-    descriptions.local.json  # descriptions the agent rewrote or wrote on first visit
-    flows.local.json         # flows saved from the chat
+    descriptions.local.json  # descriptions and dependency reasons Atlas wrote from the code
+    flows.local.json         # documented flows saved from the chat
     out/                     # generated, gitignore it
   web/        (a git repo)
   billing/    (a git repo)

@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import type { Desc, DescribeResponse, DescriptionsStore, Skeleton } from './types.ts';
-import type { DescDraft } from './parse.ts';
+import type { Desc, DescribeResponse, DescriptionsStore, Skeleton, Use } from './types.ts';
+import type { DescDraft, UseDraft } from './parse.ts';
 import { parseDescription } from './parse.ts';
 import { atlasPaths, moduleHash, readJsonOr } from './project.ts';
 import { contextSection, describeFlags, describePrompt, fencedJson } from './agent.ts';
@@ -26,6 +26,11 @@ const toDesc = (o: DescDraft, describedHash: string): Desc => ({
   describedHash,
 });
 
+const toUse = (u: UseDraft): Use | null => {
+  const why = u.why_pt || u.why_en;
+  return why ? { why, why_en: u.why_en || why } : null;
+};
+
 export function describeModule(project: string, id: string): Promise<DescribeResponse> | null {
   const paths = atlasPaths(project);
   const skeleton = readJsonOr<Skeleton>(paths.skeleton, { generatedAt: '', nodes: [], edges: [] });
@@ -34,7 +39,14 @@ export function describeModule(project: string, id: string): Promise<DescribeRes
   const section = contextSection(fs.readFileSync(paths.context, 'utf8'), id);
   const child = runClaude(
     project,
-    describeFlags(describePrompt({ id, section, files: mod.files.map((f) => source(project, f.path)) })),
+    describeFlags(
+      describePrompt({
+        id,
+        section,
+        files: mod.files.map((f) => source(project, f.path)),
+        uses: [...new Set(skeleton.edges.filter((e) => e.from === id).map((e) => e.to))],
+      }),
+    ),
   );
   let out = '';
   child.stdout.on('data', (d: Buffer) => (out += d));
@@ -54,8 +66,14 @@ export function describeModule(project: string, id: string): Promise<DescribeRes
           const draft = got.files[f.path];
           if (draft) files[f.path] = store.files[f.path] = toDesc(draft, f.hash);
         }
+        const uses: Record<string, Use> = {};
+        for (const target of skeleton.edges.filter((e) => e.from === id).map((e) => e.to)) {
+          const use = got.uses[target] && toUse(got.uses[target]);
+          if (use) uses[target] = use;
+        }
+        if (Object.keys(uses).length) (store.uses ??= {})[id] = uses;
         fs.writeFileSync(paths.descriptions, JSON.stringify(store, null, 2));
-        resolve({ module: got.module ? store.nodes[id] : null, files });
+        resolve({ module: got.module ? store.nodes[id] : null, files, uses });
       } catch (e) {
         reject(new Error(`describe ${id} failed: ${e}\n${out.slice(-400)}`));
       }

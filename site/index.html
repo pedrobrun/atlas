@@ -414,8 +414,8 @@
         <h2>It writes the map once, then keeps it current</h2>
         <p class="section-lede">
           The map has two layers. A skeleton of modules, imports and file hashes is built from the code. On
-          top of it, the agent writes what each part does, the main flows, the rules that must hold, and the
-          decisions behind them, each anchored to a file and line.
+          top of it, the agent writes what each part does, why it uses each thing it imports, the main flows
+          and the decisions behind them, each anchored to a file and line.
         </p>
         <ol class="cycle">
           <li>
@@ -452,8 +452,8 @@
               loading="lazy"
             />
             <figcaption>
-              <b>Details</b> shows what a module is for, the lines that prove it, the flows and rules it takes
-              part in, and what it uses.
+              <b>Details</b> shows what a module is for, the lines that prove it, the flows it takes part in,
+              and why it uses each module it imports.
             </figcaption>
           </figure>
           <figure>

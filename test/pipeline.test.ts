@@ -100,16 +100,6 @@ const semantic = {
   },
   legacy: { extracted: { label: 'já extraído', label_en: 'extracted', note: 'Foi para outro lugar.' } },
   legacyStatus: { 'billing/core/tax': 'extracted' },
-  invariants: [
-    {
-      id: 'tax',
-      name: 'Imposto num lugar só',
-      name_en: 'Tax in one place',
-      guard: 'none',
-      guardPath: 'docs/tax.md',
-      scope: ['billing/core/tax'],
-    },
-  ],
   decisions: [{ id: '0001', name: 'Cobrança separada', path: 'docs/0001.md', units: ['billing/core/index'] }],
   concepts: [{ id: 'order', name: 'Pedido', owner: ['web/api/orders'], writes: [], reads: ['web/lib/cart'] }],
   flows: [

@@ -1,17 +1,6 @@
 import { isStale } from '../types.ts';
 import type { Flow } from '../types.ts';
-import {
-  CAP,
-  D,
-  externals,
-  FLOW,
-  isUnder,
-  LEGACY_COLOR,
-  modLabel,
-  modules,
-  repoName,
-  SOURCES,
-} from './data.ts';
+import { CAP, D, externals, FLOW, LEGACY_COLOR, N, modLabel, modules, repoName, SOURCES } from './data.ts';
 import { esc } from './dom.ts';
 import type { Key } from './i18n.ts';
 import type { DescribeStatus } from './chat.ts';
@@ -19,16 +8,7 @@ import { fmt, L, t } from './i18n.ts';
 import { state } from './state.ts';
 import type { TreeNode } from './tree.ts';
 import { countLoc, descOf, modulesUnder, view } from './tree.ts';
-import {
-  confidenceChip,
-  flowButton,
-  ledes,
-  moduleLink,
-  plainChip,
-  repoDot,
-  ruleItem,
-  section,
-} from './html.ts';
+import { confidenceChip, flowButton, ledes, moduleLink, plainChip, repoDot, section } from './html.ts';
 
 const KIND_NAME: Record<Exclude<TreeNode['kind'], 'root' | 'group'>, Key> = {
   cap: 'capability',
@@ -65,7 +45,6 @@ function rootCard() {
     ledes(describesItself ? D.system : null),
     `<p class="lede second">${t('rootHow')} ${lens} ${t('rootHover')}</p>`,
     section(t('flows'), D.flows.map((f) => flowButton(f, true)).join('')),
-    section(t('rules'), D.invariants.map(ruleItem).join('')),
     section(t('externals'), `<div class="row">${externals.map((e) => moduleLink(e.id)).join('')}</div>`),
   ].join('');
 }
@@ -76,7 +55,10 @@ function externalCard(n: Extract<TreeNode, { kind: 'external' }>) {
     f.steps.some((s) => s.unit === n.id || calls.some((c) => c.from === s.unit)),
   );
   const callers = calls
-    .map((e) => `<div class="call">${moduleLink(e.from, e.w)}<div class="ev">${esc(e.at ?? '')}</div></div>`)
+    .map(
+      (e) =>
+        `<div class="dep"><div class="call">${moduleLink(e.from, e.w)}<div class="ev">${esc(e.at ?? '')}</div></div>${reason(e.from, n.id)}</div>`,
+    )
     .join('');
   return [
     `<h2>${esc(n.name)}</h2>`,
@@ -125,17 +107,19 @@ function neighbours(mine: Set<string>, side: 'out' | 'in') {
     const [here, there] = side === 'out' ? [e.from, e.to] : [e.to, e.from];
     if (mine.has(here) && !mine.has(there)) weights.set(there, (weights.get(there) ?? 0) + e.w);
   }
-  return [...weights].sort((a, b) => b[1] - a[1]).slice(0, 8);
+  return [...weights].sort((a, b) => b[1] - a[1]);
 }
+
+const reason = (from: string, to: string) => {
+  const use = N[from]?.uses?.[to];
+  return use ? `<p class="why">${esc(L(use, 'why'))}</p>` : '';
+};
 
 function nodeCard(n: Extract<TreeNode, { kind: 'repo' | 'area' | 'module' }>) {
   const m = n.ref;
   const d = m.desc;
   const mine = new Set(modulesUnder(n));
   const flows = D.flows.filter((f) => f.steps.some((s) => mine.has(s.unit)));
-  const rules = D.invariants.filter((i) =>
-    i.scope.some((s) => mine.has(s) || s === n.id || isUnder(n.id, s) || isUnder(s, n.id)),
-  );
   const cap = m.cap && state.lens === 'repo' ? CAP[m.cap] : null;
   const legacy = m.legacy ? D.legacy[m.legacy] : null;
   const facts = [
@@ -156,7 +140,16 @@ function nodeCard(n: Extract<TreeNode, { kind: 'repo' | 'area' | 'module' }>) {
     .join('');
   const links = (side: 'out' | 'in') => {
     const list = neighbours(mine, side);
-    return list.length ? `<div class="row">${list.map(([id, w]) => moduleLink(id, w)).join('')}</div>` : '';
+    if (n.kind !== 'module') {
+      const top = list.slice(0, 8).map(([id, w]) => moduleLink(id, w));
+      return top.length ? `<div class="row">${top.join('')}</div>` : '';
+    }
+    return list
+      .map(
+        ([id, w]) =>
+          `<div class="dep">${moduleLink(id, w)}${side === 'out' ? reason(n.id, id) : reason(id, n.id)}</div>`,
+      )
+      .join('');
   };
   return [
     `<h2>${esc(n.kind === 'module' ? modLabel(n.id) : n.name)}</h2>`,
@@ -166,7 +159,6 @@ function nodeCard(n: Extract<TreeNode, { kind: 'repo' | 'area' | 'module' }>) {
     legacy ? `<p class="lede second">${esc(L(legacy, 'note'))}</p>` : '',
     section(t('evidence'), evidence),
     section(t('flows'), flows.map((f) => flowButton(f)).join('')),
-    section(t('rulesShort'), rules.map(ruleItem).join('')),
     section(`<span style="color:#5b50e8">●</span> ${t('uses')}`, links('out')),
     section(`<span style="color:#14a08e">●</span> ${t('usedBy')}`, links('in')),
   ].join('');
@@ -197,12 +189,21 @@ export function captionHtml(describeStatus: (id: string) => DescribeStatus | nul
   if (flow) {
     const step = flow.steps[state.step];
     if (!step) return '';
-    const anchor = ` · <code>${esc(step.anchor)}</code>`;
+    const dots = flow.steps
+      .map((s, i) => {
+        const at = i === state.step ? ' now' : i < state.step ? ' done' : '';
+        return `<button class="dot${at}" data-step="${i}" title="${esc(modLabel(s.unit))}"></button>`;
+      })
+      .join('');
     return [
-      `<div class="k">${esc(L(flow, 'name'))} · ${state.step + 1}/${flow.steps.length}</div>`,
-      `<div class="nav"><button data-stepby="-1">←</button><button data-stepby="1">→</button></div>`,
-      `<div class="d" style="margin-top:4px">${esc(L(step, 'text'))}</div>`,
-      `<div class="t">${esc(modLabel(step.unit))}${anchor}</div>`,
+      `<div class="flowbar">`,
+      `<div class="top"><span class="name">${esc(L(flow, 'name'))}</span>`,
+      `<span class="count">${t('step')} ${state.step + 1} ${t('of')} ${flow.steps.length}</span>`,
+      `<span class="arrows"><button data-stepby="-1" aria-label="${t('prev')}">←</button><button data-stepby="1" aria-label="${t('next')}">→</button></span></div>`,
+      `<div class="dots">${dots}</div>`,
+      `<p class="say">${esc(L(step, 'text'))}</p>`,
+      `<div class="where"><button class="nb" data-go="${esc(step.unit)}">${esc(modLabel(step.unit))}</button><code>${esc(step.anchor)}</code></div>`,
+      `</div>`,
     ].join('');
   }
   const n = subject();

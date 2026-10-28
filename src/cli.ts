@@ -3,7 +3,7 @@ import net from 'node:net';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { atlasPaths, readJsonOr } from './project.ts';
-import { isStale } from './types.ts';
+import { isStale, lacksReasons } from './types.ts';
 import { loadAtlas } from './load.ts';
 import { renderBrief } from './context.ts';
 import { describeModule } from './describe.ts';
@@ -118,7 +118,9 @@ const PARALLEL = 4;
 async function undescribedModules(project: string) {
   const { atlas } = await loadAtlas(project);
   return atlas.nodes
-    .filter((n) => n.kind === 'module' && (!n.desc || n.files.some((f) => !f.desc)))
+    .filter(
+      (n) => n.kind === 'module' && (!n.desc || n.files.some((f) => !f.desc) || lacksReasons(n, atlas.edges)),
+    )
     .map((n) => n.id);
 }
 

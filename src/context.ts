@@ -23,7 +23,7 @@ function commonDir(paths: string[]) {
 }
 
 export function renderContext(atlas: Atlas): string {
-  const { config, system, nodes, edges, caps, flows, invariants, decisions, legacy } = atlas;
+  const { config, system, nodes, edges, caps, flows, decisions, legacy } = atlas;
   const capName = new Map(caps.map((c) => [c.id, english(c, 'name')]));
   const lines = [
     `# Atlas — ${config.name}`,
@@ -73,8 +73,10 @@ export function renderContext(atlas: Atlas): string {
     if (n.desc?.anchors)
       lines.push(`evidence: ${n.desc.anchors.map((a) => `${a.path}:${a.line} (${a.note})`).join('; ')}`);
     const uses = neighbours(edges, (e) => e.from === n.id, 'to');
+    const reasons = Object.entries(n.uses ?? {}).map(([id, u]) => `${id}: ${english(u, 'why')}`);
     const usedBy = neighbours(edges, (e) => e.to === n.id, 'from');
     if (uses) lines.push(`uses: ${uses}`);
+    if (reasons.length) lines.push(`why it uses them: ${reasons.join(' | ')}`);
     if (usedBy) lines.push(`used by: ${usedBy}`);
     lines.push(`files: ${n.files.map((f) => f.path.split('/').pop()).join(', ')}`, '');
   }
@@ -91,21 +93,12 @@ export function renderContext(atlas: Atlas): string {
   }
 
   if (flows.length) {
-    lines.push('## Flows');
+    lines.push('## Documented flows');
     for (const f of flows) {
       lines.push(`### flow:${f.id} — ${english(f, 'name')} [${f.confidence}]`);
       f.steps.forEach((s, i) => lines.push(`${i + 1}. ${s.unit} — ${english(s, 'text')} (${s.anchor})`));
       lines.push('');
     }
-  }
-  if (invariants.length) {
-    lines.push('## Invariants');
-    for (const i of invariants) {
-      lines.push(
-        `- ${english(i, 'name')} — guard: ${i.guard} (${i.guardPath}) — scope: ${i.scope.join(', ')}`,
-      );
-    }
-    lines.push('');
   }
   if (decisions.length) {
     lines.push('## Decisions');
@@ -142,10 +135,10 @@ export function renderBrief(atlas: Atlas, paths: BriefPaths): string {
   const systems = atlas.nodes.filter((n) => n.kind === 'external').map((n) => n.name);
   if (systems.length) lines.push(`External systems: ${systems.join(', ')}.`, '');
   lines.push(
-    `The full map is ${paths.context}: every module with its description, dependencies and evidence, plus flows, invariants and decisions. Read the parts you need before changing an area you don't know.`,
+    `The full map is ${paths.context}: every module with its description, dependencies and evidence, plus documented flows and decisions. Read the parts you need before changing an area you don't know.`,
     '',
     'Keep the map true as you work:',
-    `- When you add, remove or rename a module, change a flow, or add or break a rule, update ${paths.semantic} in the same change (format: ${paths.reference}) and run \`node ${paths.cli} build\`. Fix whatever it reports.`,
+    `- When you add, remove or rename a module, or change a documented flow, update ${paths.semantic} in the same change (format: ${paths.reference}) and run \`node ${paths.cli} build\`. Fix whatever it reports.`,
     '- Descriptions of modules whose code changed are rewritten on their own after your turn.',
     `- \`node ${paths.cli} open\` shows the map in 3D.`,
   );

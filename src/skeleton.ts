@@ -105,7 +105,7 @@ const externals = (config.externals ?? []).map((e) => {
   const imports = packages.map((p) => (p.endsWith('/') ? `${escape(p)}[^'"]*` : `${escape(p)}(?:/[^'"]*)?`));
   const signals = [
     ...(imports.length ? [new RegExp(`(?:from|import)\\s*\\(?\\s*['"](?:${imports.join('|')})['"]`)] : []),
-    ...(e.env ?? []).map((prefix) => new RegExp(`\\b${escape(prefix)}`)),
+    ...(e.env ?? []).map((prefix) => new RegExp(`\\benv(?:\\.|\\[['"\`])${escape(prefix)}`)),
     ...(e.code ?? []).map((c) => new RegExp(c)),
   ];
   return { id: `ext:${e.id}`, name: e.name, kind: e.kind, signals };

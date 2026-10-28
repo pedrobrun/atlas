@@ -82,7 +82,9 @@ function drawFlowPath() {
     .map((id) => view.T[id])
     .filter(Boolean);
   for (let i = 1; i < steps.length; i++) {
-    if (steps[i] !== steps[i - 1]) arc(topOf(steps[i - 1]), topOf(steps[i]), FLOW_COLOR, 6, null);
+    if (steps[i] === steps[i - 1]) continue;
+    const current = i === state.step;
+    arc(topOf(steps[i - 1]), topOf(steps[i]), FLOW_COLOR, current ? 6 : 3, null, !current);
   }
 }
 

@@ -18,11 +18,6 @@ export const repoOf = (id: string): string => {
   while (n && n.kind !== 'repo') n = n.parent ? N[n.parent] : undefined;
   return n ? n.id.split(':')[1] : '';
 };
-export const isUnder = (id: string, anc: string) => {
-  for (let n: MapNode | undefined = N[id]; n; n = n.parent ? N[n.parent] : undefined)
-    if (n.id === anc) return true;
-  return false;
-};
 export const short = (s: string) => s.replace(/^@[^/]+\//, '');
 export function modLabel(id: string) {
   const n = N[id];

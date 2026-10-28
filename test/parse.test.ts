@@ -40,8 +40,10 @@ test('config: unknown keys are ignored, a source without rules is refused', () =
   );
 });
 
-test("the agent's description may omit the module; files default to none", () => {
-  assert.deepEqual(parseDescription({}), { module: undefined, files: {} });
+test("the agent's description may omit the module; files and reasons default to none", () => {
+  assert.deepEqual(parseDescription({}), { module: undefined, uses: {}, files: {} });
+  const why = parseDescription({ uses: { 'billing/core/tax': { why_en: 'Totals the invoice.' } } });
+  assert.equal(why.uses['billing/core/tax'].why_en, 'Totals the invoice.');
   const got = parseDescription({ files: { 'a.ts': { biz_en: 'Adds.', tech_pt: 'Soma.' } } });
   assert.equal(got.files['a.ts'].biz_en, 'Adds.');
   assert.throws(() => parseDescription({ files: { 'a.ts': { biz_en: 3 } } }), /files\.a\.ts\.biz_en/);

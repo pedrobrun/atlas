@@ -33,6 +33,8 @@ export function mergeMap(input: MergeInput): MergeResult {
     const legacy = semantic.legacyStatus?.[n.id];
     if (legacy) n.legacy = legacy;
     for (const f of n.files) if (descriptions.files[f.path]) f.desc = descriptions.files[f.path];
+    const uses = descriptions.uses?.[n.id];
+    if (uses) n.uses = uses;
     return n;
   });
 
@@ -42,7 +44,6 @@ export function mergeMap(input: MergeInput): MergeResult {
   };
   Object.keys(semantic.desc ?? {}).forEach(check('desc'));
   Object.keys(semantic.legacyStatus ?? {}).forEach(check('legacy'));
-  for (const i of semantic.invariants ?? []) i.scope.forEach(check(`invariant ${i.id}`));
   for (const d of semantic.decisions ?? []) d.units.forEach(check(`decision ${d.id}`));
   for (const c of semantic.concepts ?? [])
     [...c.owner, ...c.writes, ...c.reads].forEach(check(`concept ${c.id}`));
@@ -72,7 +73,6 @@ export function mergeMap(input: MergeInput): MergeResult {
       nodes,
       edges: skeleton.edges,
       caps,
-      invariants: semantic.invariants ?? [],
       decisions: semantic.decisions ?? [],
       flows,
       legacy,

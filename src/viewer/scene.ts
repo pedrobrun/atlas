@@ -131,7 +131,7 @@ export function buildScene() {
   for (const n of Object.values(view.T)) if (n.kind !== 'root') n.gfx = draw(n);
 }
 
-const EMISSIVE: Record<Mark, number> = { none: 0x000000, lit: 0x6a4200, flow: 0x2e0614, step: 0x7a1238 };
+const EMISSIVE: Record<Mark, number> = { none: 0x000000, lit: 0x6a4200, flow: 0x000000, step: 0x7a1238 };
 export const setGlow = (n: TreeNode, hovered = false) =>
   n.gfx?.mesh.material.emissive.setHex(hovered ? (dark ? 0x2a2a3a : 0x1d1d2a) : EMISSIVE[n.mark]);
 
