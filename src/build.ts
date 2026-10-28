@@ -30,7 +30,6 @@ function pageData(a: Atlas): PageData {
     nodes: a.nodes,
     edges: a.edges,
     caps: a.caps.map(({ rules, ...c }) => c),
-    invariants: a.invariants,
     flows: a.flows,
     legacy: a.legacy,
   };

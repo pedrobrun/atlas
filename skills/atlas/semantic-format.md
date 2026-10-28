@@ -58,16 +58,6 @@ Write only what you read in the code. Every description carries the `path:line` 
       ]
     }
   ],
-  "invariants": [
-    {
-      "id": "one-invoice-per-order",
-      "name": "An order is invoiced once",
-      "biz": "Retries must not bill twice.",
-      "guard": "test",
-      "guardPath": "billing/lib/invoices.test.ts",
-      "scope": ["billing/core/invoices"]
-    }
-  ],
   "decisions": [
     {
       "id": "billing-separate",
@@ -91,14 +81,7 @@ Write only what you read in the code. Every description carries the `path:line` 
 
   `atlas build` adds a `describedHash` to each entry. That is how the map knows a description is out of date when its code changes. Leave the field alone, or delete it after rewriting an entry by hand.
 
-- **`flows`** are named paths through existing code. Each has `id`, `name`, optional `biz`, a `confidence`, and `steps`. A step is `{ unit, text, anchor }`, where `unit` is a module id or an `ext:` system and `anchor` is the `"path:line"` that shows the step happening.
-- **`invariants`** are rules that must not break. Each has `id`, `name`, optional `biz`, a `guard`, a `guardPath` and a `scope`:
-  - `guard` says what enforces the rule: `test`, `type`, `partial` or `none`;
-  - `guardPath` is the file that does it, or `""`;
-  - `scope` lists the module ids the rule covers.
-
-  An invariant may also name a `decision` id.
-
+- **`flows`** are documented flows: named paths through existing code. Each has `id`, `name`, optional `biz`, a `confidence`, and `steps`. A step is `{ unit, text, anchor }`, where `unit` is a module id or an `ext:` system and `anchor` is the `"path:line"` that shows the step happening.
 - **`decisions`** are choices with written evidence. Each has `id`, `name`, an optional `note`, a `path` to the evidence, and `units`, the module ids it shapes.
 - **`concepts`** are domain entities. Each has `id`, `name`, `biz`, optional `store` and `confidence`, and `owner`, `writes` and `reads`, which are lists of module ids.
 - **`legacy`** and **`legacyStatus`** mark code that is being retired:

@@ -22,7 +22,7 @@ export function chatSystemPrompt({
   contextPath: string;
 }) {
   return `You are Atlas, the architecture guide for the codebase in the current directory (several repos side by side).
-Before answering, read ${contextPath} — the architecture map: capabilities, modules with descriptions and dependencies, flows, invariants and decisions.
+Before answering, read ${contextPath} — the architecture map: capabilities, modules with descriptions and dependencies, documented flows and decisions.
 Rules:
 - Ground every claim. Prefer the map; when it is not enough, or a description is marked STALE, read the code (Read/Grep/Glob) and say so. Cite code as path:line.
 - Refer to modules with their exact atlas id in double brackets, e.g. [[web/api/orders]]. Capabilities: [[cap:billing]]. Never invent ids.
@@ -49,14 +49,20 @@ export function describePrompt({
   id,
   section,
   files,
+  uses,
 }: {
   id: string;
   section: string;
   files: { path: string; text: string }[];
+  uses: string[];
 }) {
   const describeModule = section.includes('STALE description') || !/\[(verified|generated)\]/.test(section);
   const moduleShape = describeModule
     ? '"module":{"biz_en":"…","biz_pt":"…","tech_en":"…","tech_pt":"…"},'
+    : '';
+  const usesShape = uses.length ? ',"uses":{"<id>":{"why_en":"…","why_pt":"…"}}' : '';
+  const usesRule = uses.length
+    ? `\nuses: for each of these ids, one plain sentence on what this module needs it for, from how the code calls it: ${uses.join(', ')}. Use the ids exactly.`
     : '';
   return `Describe one module of this codebase for an architecture map.
 Module id: ${id}
@@ -67,10 +73,10 @@ ${files.map((f) => `\n=== ${f.path}\n${f.text}`).join('\n')}
 
 Output ONLY one fenced block and nothing else:
 \`\`\`atlas-desc
-{${moduleShape}"files":{"<path>":{"biz_en":"…","biz_pt":"…","tech_en":"…","tech_pt":"…"}}}
+{${moduleShape}"files":{"<path>":{"biz_en":"…","biz_pt":"…","tech_en":"…","tech_pt":"…"}}${usesShape}}
 \`\`\`
 biz: one plain sentence on what it is for, for someone who doesn't read code.
-tech: one or two sentences on how it does it, naming the key functions, routes or components.
+tech: one or two sentences on how it does it, naming the key functions, routes or components.${usesRule}
 Describe the code as it is now; never mention what the map said before.
 _pt fields in Brazilian Portuguese. Use the file paths exactly as they appear after ===.`;
 }

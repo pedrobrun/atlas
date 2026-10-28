@@ -1,4 +1,4 @@
-import type { Confidence, Desc, Flow, Invariant } from '../types.ts';
+import type { Confidence, Desc, Flow } from '../types.ts';
 import { hex, modLabel, REPO_COLOR, repoOf } from './data.ts';
 import { esc } from './dom.ts';
 import type { Key } from './i18n.ts';
@@ -12,14 +12,6 @@ const CONFIDENCE: Record<Confidence, { key: Key; tone: string }> = {
 };
 export const confidenceChip = (c: Confidence | undefined) =>
   c ? chip(t(CONFIDENCE[c].key), CONFIDENCE[c].tone) : '';
-
-const GUARD: Record<Invariant['guard'], { key: Key; tone: string }> = {
-  test: { key: 'test', tone: 'ok' },
-  type: { key: 'type', tone: 'ok' },
-  partial: { key: 'partial', tone: 'warn' },
-  none: { key: 'paper', tone: 'bad' },
-};
-export const guardChip = (g: Invariant['guard']) => chip(t(GUARD[g].key), GUARD[g].tone);
 
 export const plainChip = (text: string, color?: number) =>
   `<span class="chip"${color === undefined ? '' : ` style="color:${hex(color)}"`}>${text}</span>`;
@@ -49,6 +41,3 @@ export const flowButton = (f: Flow, detailed = false) => {
   const summary = detailed ? `<span>${esc(L(f, 'biz'))}</span>` : '';
   return `<button class="it" data-flow="${esc(f.id)}"><b>${title}</b>${summary}</button>`;
 };
-
-export const ruleItem = (i: Invariant) =>
-  `<div class="it"><b>${esc(L(i, 'name'))} ${guardChip(i.guard)}</b></div>`;

@@ -494,11 +494,6 @@ select {
   padding: 1px 5px;
   font-weight: 520;
 }
-.lab.step .n {
-  background: var(--flow);
-  color: #fff;
-  border-color: transparent;
-}
 .call {
   display: flex;
   align-items: baseline;
@@ -865,4 +860,99 @@ body.paneled #up {
   .hint {
     display: none;
   }
+}
+.dep {
+  margin-bottom: 8px;
+}
+.dep .why {
+  margin: 3px 0 0 4px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+.lab.step .n {
+  background: var(--card);
+  color: var(--ink-2);
+  border-color: color-mix(in srgb, var(--flow) 40%, transparent);
+}
+.lab.step.now .n {
+  background: var(--flow);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--flow) 25%, transparent);
+}
+#caption:has(.flowbar) {
+  width: min(760px, calc(100vw - 32px));
+  padding: 16px 20px 18px;
+}
+body.paneled #caption:has(.flowbar) {
+  width: min(760px, calc(100vw - 500px));
+}
+.flowbar .top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.flowbar .name {
+  font-size: 13px;
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.flowbar .count {
+  margin-left: auto;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--flow);
+  white-space: nowrap;
+}
+.flowbar .arrows {
+  display: flex;
+  gap: 6px;
+}
+.flowbar .arrows button {
+  background: var(--chip);
+  border-radius: 8px;
+  width: 36px;
+  height: 30px;
+  font-size: 15px;
+  font-weight: 700;
+}
+.flowbar .arrows button:hover {
+  background: color-mix(in srgb, var(--flow) 25%, transparent);
+}
+.flowbar .dots {
+  display: flex;
+  gap: 4px;
+  margin: 12px 0 14px;
+}
+.flowbar .dot {
+  flex: 1;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--chip);
+}
+.flowbar .dot.done {
+  background: color-mix(in srgb, var(--flow) 45%, transparent);
+}
+.flowbar .dot.now {
+  background: var(--flow);
+}
+.flowbar .say {
+  margin: 0;
+  font-size: 16.5px;
+  line-height: 1.45;
+  text-wrap: pretty;
+}
+.flowbar .where {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.flowbar .where code {
+  font: 11.5px var(--mono);
+  color: var(--accent);
 }

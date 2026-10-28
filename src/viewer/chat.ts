@@ -1,3 +1,4 @@
+import { lacksReasons } from '../types.ts';
 import type { ChatEvent, ChatRequest, DescribeResponse, Flow, SaveFlowResponse } from '../types.ts';
 import { addDraftFlow, CAP, D, FLOW, modLabel, N, repoOf } from './data.ts';
 import { byId, esc } from './dom.ts';
@@ -244,7 +245,7 @@ async function describe(id: string): Promise<DescribeResponse> {
 export async function ensureDescribed(n: TreeNode | null | undefined) {
   if (!served || n?.kind !== 'module' || running.has(n.id)) return;
   const m = n.ref;
-  if (m.desc && m.files.every((f) => f.desc)) return;
+  if (m.desc && m.files.every((f) => f.desc) && !lacksReasons(m, D.edges)) return;
   const tries = attempts.get(n.id) ?? 0;
   if (tries >= MAX_ATTEMPTS) return;
   attempts.set(n.id, tries + 1);
@@ -255,6 +256,7 @@ export async function ensureDescribed(n: TreeNode | null | undefined) {
     const got = await describe(n.id);
     if (got.module && !m.desc) m.desc = got.module;
     for (const f of m.files) if (got.files[f.path]) f.desc = got.files[f.path];
+    if (Object.keys(got.uses).length) m.uses = got.uses;
     failures.delete(n.id);
   } catch (e) {
     failures.set(

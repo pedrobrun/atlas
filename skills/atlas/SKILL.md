@@ -62,7 +62,7 @@ Then declare the external systems the code talks to: databases, queues, storage,
 ]
 ```
 
-A file calls a system when it imports one of its `packages` (`"@aws-sdk/*"` matches every subpath), mentions one of its `env` prefixes, or matches one of its `code` regexes. Use `code` for systems reached without an SDK: a REST host, or a provider key passed to an integration proxy. Keep `kind` short and shared between similar systems.
+A file calls a system when it imports one of its `packages` (`"@aws-sdk/*"` matches every subpath), reads an environment variable starting with one of its `env` prefixes (`process.env.STRIPE_KEY`, `env.STRIPE_KEY`), or matches one of its `code` regexes. Use `code` for systems reached without an SDK: a REST host, or a provider key passed to an integration proxy. Keep `kind` short and shared between similar systems.
 
 Run `atlas build`, then read `.atlas/out/skeleton.json` (module ids, file counts, lines). Adjust the rules and rebuild until no module swallows unrelated code, no important folder is missing, and the count is in range. `atlas status` lists `systemsNeverCalled`: fix those systems' signals, or drop the ones the code doesn't use.
 
@@ -76,7 +76,6 @@ Read the code before you write about it: entry points, routes, the main types, R
 - `caps`: 4 to 12 capabilities, the business-level groups a newcomer should see first. Their `rules` must place every module in exactly one.
 - `desc`: one entry per module, and one per external system (`ext:<id>`) saying what the project uses it for. `biz` says what it is for in plain words, `tech` how it does it, one or two sentences each. Add one to three `anchors`, the `path:line` places that prove it, and `"confidence": "verified"`. Write nothing you didn't read in the code: the build refuses a description without anchors.
 - `flows`: the 3 to 6 paths through the code that matter most, 4 to 10 steps each. Every step is an existing module id with an anchor you read, or an external system (`ext:<id>`) where the flow leaves the code.
-- `invariants`: rules that must not break, and what guards each one.
 - `decisions`: only choices with written evidence (an ADR, a design doc, a comment that explains a why).
 
 If `language` is `pt`, write Portuguese in the base fields and English in the `_en` twins. If it is `en`, write English and skip the twins.

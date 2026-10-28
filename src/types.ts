@@ -132,15 +132,6 @@ export interface Flow extends Bilingual<'name' | 'biz'> {
   steps: FlowStep[];
 }
 
-export interface Invariant extends Bilingual<'name' | 'biz'> {
-  id: string;
-  name: string;
-  guard: 'test' | 'type' | 'partial' | 'none';
-  guardPath: string;
-  scope: string[];
-  decision?: string;
-}
-
 export interface Decision extends Bilingual<'name' | 'note'> {
   id: string;
   name: string;
@@ -169,25 +160,36 @@ export interface Semantic {
   desc?: Record<string, Desc>;
   legacy?: Record<string, LegacyStatus>;
   legacyStatus?: Record<string, string>;
-  invariants?: Invariant[];
   decisions?: Decision[];
   concepts?: Concept[];
   flows?: Flow[];
 }
 
+/** Why a module uses one of its dependencies, read from its code. */
+export interface Use extends Bilingual<'why'> {
+  why: string;
+}
+
 export interface DescriptionsStore {
   nodes: Record<string, Desc>;
   files: Record<string, Desc>;
+  /** By module id, then by the id of what it uses. */
+  uses?: Record<string, Record<string, Use>>;
 }
 
 export interface MapNode extends SkNode {
   hash: string;
   cap?: string | null;
   desc?: Desc;
+  uses?: Record<string, Use>;
   legacy?: string;
 }
 
 export const isStale = (n: MapNode) => !!n.desc && n.desc.describedHash !== n.hash;
+
+/** True when the module uses something and the map doesn't yet say why. */
+export const lacksReasons = (n: MapNode, edges: Edge[]) =>
+  edges.some((e) => e.from === n.id && !n.uses?.[e.to]);
 
 export interface Atlas {
   config: PageData['config'];
@@ -196,7 +198,6 @@ export interface Atlas {
   nodes: MapNode[];
   edges: Edge[];
   caps: Capability[];
-  invariants: Invariant[];
   decisions: Decision[];
   flows: Flow[];
   legacy: Record<string, LegacyStatus>;
@@ -214,7 +215,6 @@ export interface PageData {
   nodes: MapNode[];
   edges: Edge[];
   caps: Omit<Capability, 'rules'>[];
-  invariants: Invariant[];
   flows: Flow[];
   legacy: Record<string, LegacyStatus>;
 }
@@ -237,6 +237,7 @@ export interface DescribeRequest {
 export interface DescribeResponse {
   module: Desc | null;
   files: Record<string, Desc>;
+  uses: Record<string, Use>;
 }
 
 export interface SaveFlowResponse {

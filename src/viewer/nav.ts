@@ -53,7 +53,10 @@ function labelFor(n: TreeNode, role: Role, focus: TreeNode, lit: Set<string>, st
     if (role === 'shell') return { cls: 'lab ctx big', text: n.name };
     if (role !== 'closed') return null;
     const positions = steps.flatMap((s, i) => (s === n.id ? [i + 1] : [])).join(' · ');
-    return { cls: n.mark === 'step' ? 'lab step big' : 'lab step', text: `${positions}  ${modLabel(n.id)}` };
+    return {
+      cls: n.mark === 'step' ? 'lab step now big' : 'lab step',
+      text: `${positions}  ${modLabel(n.id)}`,
+    };
   }
   if (role === 'district') return { cls: n.parent === view.root ? 'lab big' : 'lab', text: n.name };
   if (role === 'closed' && focus === view.root && n.kind === 'module') {

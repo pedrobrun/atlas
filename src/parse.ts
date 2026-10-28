@@ -10,7 +10,6 @@ import type {
   ExternalConfig,
   Flow,
   FlowStep,
-  Invariant,
   LegacyStatus,
   ModuleRule,
   Semantic,
@@ -164,11 +163,27 @@ function descDraft(v: unknown, what: string): DescDraft {
     tech_pt: optionalString(d.tech_pt, `${what}.tech_pt`),
   };
 }
-export function parseDescription(v: unknown): { module?: DescDraft; files: Record<string, DescDraft> } {
+export interface UseDraft {
+  why_en?: string;
+  why_pt?: string;
+}
+function useDraft(v: unknown, what: string): UseDraft {
+  const u = object(v, what);
+  return {
+    why_en: optionalString(u.why_en, `${what}.why_en`),
+    why_pt: optionalString(u.why_pt, `${what}.why_pt`),
+  };
+}
+export function parseDescription(v: unknown): {
+  module?: DescDraft;
+  files: Record<string, DescDraft>;
+  uses: Record<string, UseDraft>;
+} {
   const d = object(v, 'description');
   const files = d.files === undefined ? {} : object(d.files, 'files');
   return {
     module: d.module === undefined ? undefined : descDraft(d.module, 'module'),
+    uses: d.uses === undefined ? {} : record(d.uses, 'uses', useDraft),
     files: Object.fromEntries(
       Object.entries(files).map(([path, x]) => [path, descDraft(x, `files.${path}`)]),
     ),
@@ -215,20 +230,6 @@ function capability(v: unknown, what: string): Capability {
     tech: optionalString(c.tech, `${what}.tech`),
     ...english(c, ['name', 'biz', 'tech'], what),
     rules: array(c.rules, `${what}.rules`, regex),
-  };
-}
-
-function invariant(v: unknown, what: string): Invariant {
-  const i = object(v, what);
-  return {
-    id: string(i.id, `${what}.id`),
-    name: string(i.name, `${what}.name`),
-    biz: optionalString(i.biz, `${what}.biz`),
-    ...english(i, ['name', 'biz'], what),
-    guard: oneOf(i.guard, ['test', 'type', 'partial', 'none'] as const, `${what}.guard`),
-    guardPath: string(i.guardPath, `${what}.guardPath`),
-    scope: strings(i.scope, `${what}.scope`),
-    decision: optionalString(i.decision, `${what}.decision`),
   };
 }
 
@@ -285,7 +286,6 @@ export function parseSemantic(v: unknown): Semantic {
     desc: optional(s.desc, 'desc', (x, w) => record(x, w, groundedDesc)),
     legacy: optional(s.legacy, 'legacy', (x, w) => record(x, w, legacyStatus)),
     legacyStatus: optional(s.legacyStatus, 'legacyStatus', stringRecord),
-    invariants: list('invariants', invariant),
     decisions: list('decisions', decision),
     concepts: list('concepts', concept),
     flows: list('flows', parseFlow),
