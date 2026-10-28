@@ -12,7 +12,7 @@ That includes, without exception:
 - example questions, prompts or screenshots that show a real codebase;
 - emails, domains, URLs, keys or IDs.
 
-Where that material goes instead: the project's own `.atlas/` folder (`<project>/.atlas/atlas.config.json`, `semantic*.mjs`, the generated `out/`), which lives with the project and outside this repo. The tool reads it at runtime; it is never copied here.
+Where that material goes instead: the project's own `.atlas/` folder (`<project>/.atlas/atlas.config.json`, `semantic.json`, the generated `out/`), which lives with the project and outside this repo. The tool reads it at runtime; it is never copied here.
 
 When an example is needed, invent one (`Acme`, `web`, `billing`, `orders`). Do not "anonymize" a real project by renaming it — its shape is still identifying.
 

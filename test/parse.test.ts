@@ -10,15 +10,25 @@ test('a chat request passes through; a bad language is refused by name', () => {
   assert.throws(() => parseChatRequest('hi'), /chat request: expected an object/);
 });
 
-test('a flow keeps its fields; a step without text is refused with its position', () => {
-  const flow = {
-    id: 'checkout',
-    name: 'Comprar',
-    confidence: 'verified',
-    steps: [{ unit: 'web/api/orders', text: 'Recebe.', anchor: null }],
-  };
+test('a flow keeps its fields; a step without text or anchor is refused with its position', () => {
+  const step = { unit: 'web/api/orders', text: 'Recebe.', anchor: 'web/src/orders.ts:3' };
+  const flow = { id: 'checkout', name: 'Comprar', confidence: 'verified', steps: [step] };
   assert.equal(JSON.stringify(parseFlow(flow)), JSON.stringify(flow));
-  assert.throws(() => parseFlow({ ...flow, steps: [{ unit: 'x', anchor: null }] }), /flow\.steps\[0\]\.text/);
+  assert.throws(
+    () => parseFlow({ ...flow, steps: [{ unit: 'x', anchor: 'a.ts:1' }] }),
+    /flow\.steps\[0\]\.text/,
+  );
+  assert.throws(() => parseFlow({ ...flow, steps: [{ ...step, anchor: null }] }), /flow\.steps\[0\]\.anchor/);
+  assert.throws(() => parseFlow({ ...flow, confidence: 'inferred' }), /flow\.confidence/);
+});
+
+test('a written description must point at the code that proves it', () => {
+  const anchors = [{ path: 'web/src/orders.ts', line: 3, note: 'POST' }];
+  assert.ok(parseSemantic({ desc: { 'web/api/orders': { biz: 'Takes orders.', anchors } } }).desc);
+  assert.throws(
+    () => parseSemantic({ desc: { 'web/api/orders': { biz: 'Takes orders.' } } }),
+    /desc\.web\/api\/orders\.anchors/,
+  );
 });
 
 test('config: unknown keys are ignored, a source without rules is refused', () => {
@@ -43,7 +53,13 @@ test('the semantic.json example the skill teaches is valid', () => {
   const semantic = parseSemantic(JSON.parse(example));
   assert.ok(semantic.caps?.[0].rules[0] instanceof RegExp);
   const stamped = parseSemantic({
-    desc: { 'web/api/orders': { biz: 'Takes orders.', describedHash: 'abcd1234' } },
+    desc: {
+      'web/api/orders': {
+        biz: 'Takes orders.',
+        anchors: [{ path: 'web/src/orders.ts', line: 3, note: 'POST' }],
+        describedHash: 'abcd1234',
+      },
+    },
   });
   assert.equal(stamped.desc?.['web/api/orders'].describedHash, 'abcd1234');
   assert.throws(

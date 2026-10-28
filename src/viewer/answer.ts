@@ -26,7 +26,6 @@ function parseDraft(json: string): FlowDraft | null {
     name_pt: optionalString(raw.name_pt),
     biz_en: optionalString(raw.biz_en),
     biz_pt: optionalString(raw.biz_pt),
-    confidence: optionalString(raw.confidence),
     steps: steps.map((s) => ({
       unit: String(s.unit),
       text_en: optionalString(s.text_en),
@@ -66,14 +65,18 @@ export function toFlow(draft: FlowDraft, inMap: (id: string) => boolean): Flow {
     name_en: draft.name_en || draft.name_pt,
     biz: draft.biz_pt || draft.biz_en,
     biz_en: draft.biz_en || draft.biz_pt,
-    confidence: draft.confidence === 'verified' ? 'verified' : 'inferred',
-    steps: (draft.steps || [])
-      .filter((s) => inMap(s.unit))
-      .map((s) => ({
-        unit: s.unit,
-        text: s.text_pt || s.text_en || '',
-        text_en: s.text_en || s.text_pt,
-        anchor: s.anchor || null,
-      })),
+    confidence: 'verified',
+    steps: (draft.steps || []).flatMap((s) =>
+      inMap(s.unit) && s.anchor
+        ? [
+            {
+              unit: s.unit,
+              text: s.text_pt || s.text_en || '',
+              text_en: s.text_en || s.text_pt,
+              anchor: s.anchor,
+            },
+          ]
+        : [],
+    ),
   };
 }

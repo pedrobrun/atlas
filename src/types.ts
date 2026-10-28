@@ -1,5 +1,5 @@
 export type Lang = 'en' | 'pt';
-export type Confidence = 'verified' | 'inferred' | 'generated';
+export type Confidence = 'verified' | 'generated';
 
 export interface ModuleRule {
   /** Regex over a file path relative to the source; first matching rule wins. */
@@ -122,7 +122,7 @@ export interface Capability extends Bilingual<'name' | 'biz' | 'tech'> {
 export interface FlowStep extends Bilingual<'text'> {
   unit: string;
   text: string;
-  anchor: string | null;
+  anchor: string;
 }
 
 export interface Flow extends Bilingual<'name' | 'biz'> {
@@ -173,19 +173,6 @@ export interface Semantic {
   decisions?: Decision[];
   concepts?: Concept[];
   flows?: Flow[];
-}
-
-/** English twins for the semantic layer, keyed like it. */
-export interface SemanticEn {
-  system?: Desc;
-  caps?: Record<string, Partial<Capability>>;
-  desc?: Record<string, Desc>;
-  anchorNotes?: Record<string, string>;
-  legacy?: Record<string, Partial<LegacyStatus>>;
-  invariants?: Record<string, Partial<Invariant>>;
-  decisions?: Record<string, Partial<Decision>>;
-  concepts?: Record<string, Partial<Concept>>;
-  flows?: Record<string, { name?: string; biz?: string; steps?: string[] }>;
 }
 
 export interface DescriptionsStore {
@@ -263,6 +250,5 @@ export interface FlowDraft {
   name_pt?: string;
   biz_en?: string;
   biz_pt?: string;
-  confidence?: string;
   steps?: { unit: string; text_en?: string; text_pt?: string; anchor?: string }[];
 }

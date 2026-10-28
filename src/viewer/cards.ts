@@ -175,9 +175,7 @@ function nodeCard(n: Extract<TreeNode, { kind: 'repo' | 'area' | 'module' }>) {
 function flowCard(f: Flow) {
   const steps = f.steps.map((step, i) => {
     const current = i === state.step;
-    const anchor = step.anchor
-      ? `<div class="ev">${esc(step.anchor)}</div>`
-      : `<div class="evn">${t('noAnchor')}</div>`;
+    const anchor = `<div class="ev">${esc(step.anchor)}</div>`;
     const text = `<div class="t">${esc(L(step, 'text'))}</div>`;
     const module = `<div class="u">${esc(modLabel(step.unit))}</div>`;
     const number = `<span class="n">${i + 1}</span>`;
@@ -199,7 +197,7 @@ export function captionHtml(describeStatus: (id: string) => DescribeStatus | nul
   if (flow) {
     const step = flow.steps[state.step];
     if (!step) return '';
-    const anchor = step.anchor ? ` · <code>${esc(step.anchor)}</code>` : '';
+    const anchor = ` · <code>${esc(step.anchor)}</code>`;
     return [
       `<div class="k">${esc(L(flow, 'name'))} · ${state.step + 1}/${flow.steps.length}</div>`,
       `<div class="nav"><button data-stepby="-1">←</button><button data-stepby="1">→</button></div>`,

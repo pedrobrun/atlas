@@ -24,7 +24,7 @@ export function chatSystemPrompt({
   return `You are Atlas, the architecture guide for the codebase in the current directory (several repos side by side).
 Before answering, read ${contextPath} — the architecture map: capabilities, modules with descriptions and dependencies, flows, invariants and decisions.
 Rules:
-- Ground every claim. Prefer the map; when it is not enough, or a description is marked STALE or [inferred], read the code (Read/Grep/Glob) and say so. Cite code as path:line.
+- Ground every claim. Prefer the map; when it is not enough, or a description is marked STALE, read the code (Read/Grep/Glob) and say so. Cite code as path:line.
 - Refer to modules with their exact atlas id in double brackets, e.g. [[web/api/orders]]. Capabilities: [[cap:billing]]. Never invent ids.
 - Be concise: a short answer first, then detail only if it helps. Plain markdown, no headings.
 - If your answer points at specific modules, end with one last line: SHOW: id1, id2, ... (atlas ids, most relevant first, max 12). The viewer lights these up in 3D.
@@ -34,9 +34,9 @@ Documenting a flow (writing down a named, step-by-step path through EXISTING cod
 - Once you know which, trace it in the code. Every step must name an existing module id from the map and an anchor path:line you actually read. Keep it to 4–10 steps.
 - Then output exactly one fenced block, nothing after it except the SHOW line:
 \`\`\`atlas-flow
-{"id":"kebab-id","name_en":"…","name_pt":"…","biz_en":"one sentence, plain language","biz_pt":"…","confidence":"verified","steps":[{"unit":"module-id","text_en":"…","text_pt":"…","anchor":"path:line"}]}
+{"id":"kebab-id","name_en":"…","name_pt":"…","biz_en":"one sentence, plain language","biz_pt":"…","steps":[{"unit":"module-id","text_en":"…","text_pt":"…","anchor":"path:line"}]}
 \`\`\`
-  Use "inferred" for confidence if any step lacks an anchor you read. The viewer previews it in 3D and the user decides whether to save it.
+  Leave out any step you could not anchor in code you read. The viewer previews it in 3D and the user decides whether to save it.
 ${about ? `The viewer is currently looking at ${about}; "this"/"isso" refers to it.` : ''}`;
 }
 
@@ -54,8 +54,7 @@ export function describePrompt({
   section: string;
   files: { path: string; text: string }[];
 }) {
-  const describeModule =
-    section.includes('STALE description') || !/\[(verified|inferred|generated)\]/.test(section);
+  const describeModule = section.includes('STALE description') || !/\[(verified|generated)\]/.test(section);
   const moduleShape = describeModule
     ? '"module":{"biz_en":"…","biz_pt":"…","tech_en":"…","tech_pt":"…"},'
     : '';

@@ -63,38 +63,78 @@ const config = {
   chat: { suggestions: { en: ['How does checkout work?'] } },
 };
 
-const semantic = `
-export const system = { biz: 'Uma loja.', tech: 'Um app web e um serviço de cobrança.' };
-export const caps = [
-  { id: 'buy', name: 'Comprar', biz: 'Pôr coisas no carrinho e pagar.', rules: [/^web\\//] },
-  { id: 'bill', name: 'Cobrar', rules: [/^billing\\//] },
-];
-export const desc = {
-  'web/api/orders': { biz: 'Recebe pedidos.', tech: 'POST que chama a cobrança.', confidence: 'verified',
-    anchors: [{ path: 'web/src/app/api/orders/route.ts', line: 3, note: 'cria a fatura' }] },
-  'billing/core/invoices': { tech: 'Gera faturas.', confidence: 'inferred', describedHash: 'deadbeef' },
+const semantic = {
+  system: { biz: 'Uma loja.', biz_en: 'A shop.', tech: 'Um app web e um serviço de cobrança.' },
+  caps: [
+    {
+      id: 'buy',
+      name: 'Comprar',
+      name_en: 'Buying',
+      biz: 'Pôr coisas no carrinho e pagar.',
+      biz_en: 'Put things in the cart and pay.',
+      rules: ['^web/'],
+    },
+    { id: 'bill', name: 'Cobrar', rules: ['^billing/'] },
+  ],
+  desc: {
+    'web/api/orders': {
+      biz: 'Recebe pedidos.',
+      biz_en: 'Takes orders.',
+      tech: 'POST que chama a cobrança.',
+      confidence: 'verified',
+      anchors: [
+        {
+          path: 'web/src/app/api/orders/route.ts',
+          line: 3,
+          note: 'cria a fatura',
+          note_en: 'creates the invoice',
+        },
+      ],
+    },
+    'billing/core/invoices': {
+      tech: 'Gera faturas.',
+      confidence: 'verified',
+      anchors: [{ path: 'billing/src/invoices/index.ts', line: 3, note: 'invoice' }],
+      describedHash: 'deadbeef',
+    },
+  },
+  legacy: { extracted: { label: 'já extraído', label_en: 'extracted', note: 'Foi para outro lugar.' } },
+  legacyStatus: { 'billing/core/tax': 'extracted' },
+  invariants: [
+    {
+      id: 'tax',
+      name: 'Imposto num lugar só',
+      name_en: 'Tax in one place',
+      guard: 'none',
+      guardPath: 'docs/tax.md',
+      scope: ['billing/core/tax'],
+    },
+  ],
+  decisions: [{ id: '0001', name: 'Cobrança separada', path: 'docs/0001.md', units: ['billing/core/index'] }],
+  concepts: [{ id: 'order', name: 'Pedido', owner: ['web/api/orders'], writes: [], reads: ['web/lib/cart'] }],
+  flows: [
+    {
+      id: 'checkout',
+      name: 'Finalizar compra',
+      name_en: 'Checkout',
+      confidence: 'verified',
+      steps: [
+        {
+          unit: 'web/api/orders',
+          text: 'Recebe o pedido.',
+          text_en: 'Takes the order.',
+          anchor: 'web/src/app/api/orders/route.ts:3',
+        },
+        {
+          unit: 'billing/core/invoices',
+          text: 'Gera a fatura.',
+          text_en: 'Makes the invoice.',
+          anchor: 'billing/src/invoices/index.ts:3',
+        },
+      ],
+    },
+  ],
 };
-export const legacy = { extracted: { label: 'já extraído', note: 'Foi para outro lugar.' } };
-export const legacyStatus = { 'billing/core/tax': 'extracted' };
-export const invariants = [
-  { id: 'tax', name: 'Imposto num lugar só', guard: 'none', guardPath: 'docs/tax.md', scope: ['billing/core/tax'] },
-];
-export const decisions = [{ id: '0001', name: 'Cobrança separada', path: 'docs/0001.md', units: ['billing/core/index'] }];
-export const concepts = [{ id: 'order', name: 'Pedido', owner: ['web/api/orders'], writes: [], reads: ['web/lib/cart'] }];
-export const flows = [{ id: 'checkout', name: 'Finalizar compra', confidence: 'verified', steps: [
-  { unit: 'web/api/orders', text: 'Recebe o pedido.', anchor: 'web/src/app/api/orders/route.ts:3' },
-  { unit: 'billing/core/invoices', text: 'Gera a fatura.', anchor: null },
-] }];
-`;
-const semanticEn = `
-export const system = { biz: 'A shop.' };
-export const caps = { buy: { name: 'Buying', biz: 'Put things in the cart and pay.' } };
-export const desc = { 'web/api/orders': { biz: 'Takes orders.' } };
-export const anchorNotes = { 'cria a fatura': 'creates the invoice' };
-export const legacy = { extracted: { label: 'extracted' } };
-export const invariants = { tax: { name: 'Tax in one place' } };
-export const flows = { checkout: { name: 'Checkout', steps: ['Takes the order.', 'Makes the invoice.'] } };
-`;
 const store = {
   'descriptions.local.json': JSON.stringify({
     nodes: {
@@ -114,10 +154,15 @@ const store = {
       id: 'browse',
       name: 'Navegar',
       name_en: 'Browse',
-      confidence: 'inferred',
+      confidence: 'verified',
       steps: [
-        { unit: 'web/pages/home', text: 'Abre a home.', text_en: 'Opens home.', anchor: null },
-        { unit: 'web/gone/module', text: 'Sumiu.', anchor: null },
+        {
+          unit: 'web/pages/home',
+          text: 'Abre a home.',
+          text_en: 'Opens home.',
+          anchor: 'web/src/app/page.tsx:1',
+        },
+        { unit: 'web/gone/module', text: 'Sumiu.', anchor: 'web/src/gone.ts:1' },
       ],
     },
   ]),
@@ -148,8 +193,7 @@ function makeProject() {
   }
   fs.mkdirSync(path.join(dir, '.atlas'));
   fs.writeFileSync(path.join(dir, '.atlas/atlas.config.json'), JSON.stringify(config));
-  fs.writeFileSync(path.join(dir, '.atlas/semantic.mjs'), semantic);
-  fs.writeFileSync(path.join(dir, '.atlas/semantic_en.mjs'), semanticEn);
+  fs.writeFileSync(path.join(dir, '.atlas/semantic.json'), JSON.stringify(semantic));
   for (const [f, text] of Object.entries(store)) fs.writeFileSync(path.join(dir, '.atlas', f), text);
   return dir;
 }

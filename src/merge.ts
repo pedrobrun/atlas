@@ -1,20 +1,10 @@
-import type {
-  AtlasConfig,
-  Atlas,
-  DescriptionsStore,
-  Flow,
-  MapNode,
-  Semantic,
-  SemanticEn,
-  Skeleton,
-} from './types.ts';
+import type { AtlasConfig, Atlas, DescriptionsStore, Flow, MapNode, Semantic, Skeleton } from './types.ts';
 import { moduleHash } from './project.ts';
 
 export interface MergeInput {
   config: AtlasConfig;
   skeleton: Skeleton;
   semantic: Semantic;
-  english: SemanticEn;
   descriptions: DescriptionsStore;
   savedFlows: Flow[];
 }
@@ -26,20 +16,9 @@ export interface MergeResult {
   droppedFlowSteps: string[];
 }
 
-const withEnglish = <T extends object>(target: T, english: object | undefined): T =>
-  Object.assign(
-    target,
-    Object.fromEntries(
-      Object.entries(english ?? {})
-        .filter(([, v]) => typeof v === 'string')
-        .map(([k, v]) => [`${k}_en`, v]),
-    ),
-  );
-
 export function mergeMap(input: MergeInput): MergeResult {
   const { config, skeleton, descriptions } = input;
   const semantic = structuredClone(input.semantic);
-  const en = input.english;
   const caps = semantic.caps ?? [];
   const known = new Set(skeleton.nodes.map((n) => n.id));
 
@@ -54,13 +33,6 @@ export function mergeMap(input: MergeInput): MergeResult {
     const legacy = semantic.legacyStatus?.[n.id];
     if (legacy) n.legacy = legacy;
     for (const f of n.files) if (descriptions.files[f.path]) f.desc = descriptions.files[f.path];
-    if (n.desc) {
-      withEnglish(n.desc, en.desc?.[n.id]);
-      for (const a of n.desc.anchors ?? []) {
-        const note = en.anchorNotes?.[a.note];
-        if (note) a.note_en = note;
-      }
-    }
     return n;
   });
 
@@ -76,17 +48,8 @@ export function mergeMap(input: MergeInput): MergeResult {
     [...c.owner, ...c.writes, ...c.reads].forEach(check(`concept ${c.id}`));
   for (const f of semantic.flows ?? []) f.steps.forEach((s) => check(`flow ${f.id}`)(s.unit));
 
-  for (const c of caps) withEnglish(c, en.caps?.[c.id]);
   const legacy = semantic.legacy ?? {};
-  for (const [k, v] of Object.entries(legacy)) withEnglish(v, en.legacy?.[k]);
-  const invariants = (semantic.invariants ?? []).map((i) => withEnglish(i, en.invariants?.[i.id]));
-  const decisions = (semantic.decisions ?? []).map((d) => withEnglish(d, en.decisions?.[d.id]));
-  const flows = (semantic.flows ?? []).map((f) => {
-    const english = en.flows?.[f.id];
-    withEnglish(f, english);
-    if (english?.steps) f.steps.forEach((step, i) => (step.text_en = english.steps![i]));
-    return f;
-  });
+  const flows = semantic.flows ?? [];
 
   const droppedFlowSteps: string[] = [];
   for (const f of structuredClone(input.savedFlows)) {
@@ -105,12 +68,12 @@ export function mergeMap(input: MergeInput): MergeResult {
         suggestions: config.chat?.suggestions || {},
       },
       generatedAt: skeleton.generatedAt,
-      system: withEnglish({ ...semantic.system }, en.system),
+      system: { ...semantic.system },
       nodes,
       edges: skeleton.edges,
       caps,
-      invariants,
-      decisions,
+      invariants: semantic.invariants ?? [],
+      decisions: semantic.decisions ?? [],
       flows,
       legacy,
     },
